@@ -68,6 +68,7 @@
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
  const baseSubmit=$('submitBtn');baseSubmit.textContent='แจ้งงาน';
+ window.QASerialLookup?.mount();
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
@@ -196,7 +197,7 @@
  if(new URLSearchParams(location.search).has('edit')){status('ใบงานเก่าใช้การแก้ไขเดิม กรุณากลับไปหน้าใบงาน',true);return;}
  busy=true;baseSubmit.disabled=true;try{
   let jobId=createdId;
-  if(!jobId){const {header,issues}=collect();requestId=requestId||crypto.randomUUID();
+  if(!jobId){await window.QASerialLookup?.settle();const {header,issues}=collect();requestId=requestId||crypto.randomUUID();
    status('กำลังบันทึกใบงานและส่งเข้าทุกแผนก...');
    const result=await rpc('qa_vnext_create_job',{p_data:header,p_issues:issues,p_files:[],p_request_id:requestId});
    jobId=String(result?.jobId||'');createdCode=String(result?.carCode||jobId);if(!jobId)throw new Error('ไม่พบหมายเลขงานที่บันทึก');createdId=jobId;
