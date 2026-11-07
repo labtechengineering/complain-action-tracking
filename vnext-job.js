@@ -37,7 +37,7 @@ async function receiverChangePng(ev){await ensureHtml2Canvas();
  ${escField('เลขปัญหา',String(detail.car_code||jobId)+'-'+String(ev.issue_number||issue?.issue_number||1).padStart(2,'0'))}
  ${escField('เลขใบงาน',detail.car_code||jobId)}${escField('ประเภทงาน',detail.source_type)}
  ${escField('Serial Number',detail.serial_no)}${escField('ลูกค้า',detail.customer_name)}
- ${escField('ประเทศ',detail.country)}${escField('ฝ่ายผู้แจ้ง',detail.from_department)}
+ ${escField('ประเทศ',detail.country)}${escField('ฝ่ายผู้แจ้ง',detail.from_department==='SYSTEM'?'System Admin':detail.from_department)}
  ${escField('Category',categoryName(issue?.category_code))}
  ${escField('รายละเอียดปัญหา',issue?.description)}
  ${escField('ฝ่ายรับเรื่องเดิม',(ev.old_departments||[]).join(', '))}
@@ -150,7 +150,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  $('details').innerHTML=`<h2>1. ข้อมูลการแจ้งเรื่อง</h2><div class="job-general-grid">
  <div class="job-general-field"><span class="job-general-label">ประเภทงาน:</span><span class="job-general-value">${esc(detail.source_type||'-')}</span></div>
  <div class="job-general-field"><span class="job-general-label">Serial Number:</span><span class="job-general-value">${esc(detail.serial_no||'-')}</span></div>
- <div class="job-general-field"><span class="job-general-label">ฝ่ายผู้แจ้ง:</span><span class="job-general-value">${esc(detail.from_department||'-')}</span></div>
+ <div class="job-general-field"><span class="job-general-label">ฝ่ายผู้แจ้ง:</span><span class="job-general-value">${esc(detail.from_department==='SYSTEM'?'System Admin':detail.from_department||'-')}</span></div>
  <div class="job-general-field"><span class="job-general-label">Customer Name:</span><span class="job-general-value">${esc(detail.customer_name||'-')}</span></div>
  <div class="job-general-field"><span class="job-general-label">Country:</span><span class="job-general-value">${esc(detail.country||'-')}</span></div>
  <div class="job-general-field job-general-wide"><span class="job-general-label">Remark:</span><span class="job-general-value">${esc(detail.requester_remark||'-')}</span></div>

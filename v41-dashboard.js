@@ -20,9 +20,9 @@ function jobCarOrder(j){
 }
 function reviewAssignments(entry){
  const p=window.QA?.profile||{};
- if(String(p.role||'').toLowerCase()!=='department_admin')return [];
+ if(!['department_admin','system_admin'].includes(String(p.role||'').toLowerCase()))return [];
  return entry.assignments.filter(a=>
-  QAWorkflow.permissions(p,entry.job,a).canResolveUnrelated||
+  QAWorkflow.permissions(p,entry.job,a).canResolveUnrelated||QAWorkflow.permissions(p,entry.job,a).canFinalReview||
   (norm(entry.job.fromDepartment)===norm(p.department)&&a.rawStatus==='WAITING_REVIEW')||
   (norm(a.department)===norm(p.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt)));
 }
@@ -159,7 +159,7 @@ function renderRows(){
   const j=e.job,i=e.issue,st=issueRowStatus(e),status=QAStatus.label(st);
   const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId)+'&assignments='+encodeURIComponent(e.assignments.map(a=>a.assignmentId).join(','))+(selectedDept?'&department='+encodeURIComponent(selectedDept):'');
   const url=baseUrl.split('#')[0]+'#issue-'+encodeURIComponent(String(i.issue_id));
-  const route=`${j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
+  const route=`${j.fromDepartment==='SYSTEM'?'System Admin':j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
   const problem=i.description||j.problemDetail||'—';
   const issueCode=displayIssueCode(j,e.assignments[0],i);
   const profile=window.QA?.profile||{};

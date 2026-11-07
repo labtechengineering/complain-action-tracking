@@ -26,7 +26,7 @@ function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const s=state(a),unrelated=!!value(a,'unrelated_requested_at','unrelatedRequestedAt');
  const canEdit=active&&own&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
  const canHeadReview=role==='department_admin'&&own&&s==='IN_PROGRESS'&&requested(a)&&!approved(a)&&!unrelated;
- const canFinalReview=role==='department_admin'&&origin&&s==='WAITING_REVIEW'&&approved(a);
+ const canFinalReview=((role==='department_admin'&&origin)||(system&&norm(j.from_department??j.fromDepartment)==='system'))&&s==='WAITING_REVIEW'&&approved(a);
  let rollbackTarget=system?({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[s]||null:null;
  if(rollbackTarget==='OPEN'&&(hasResponseFiles||requested(a)||approved(a)||['receiver_problem_detail','problem_analysis','corrective_action'].some(k=>String(a[k]||'').trim())))rollbackTarget=null;
  return {own,origin,owner,system,responsible,

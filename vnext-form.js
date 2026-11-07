@@ -15,6 +15,15 @@
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
+ .vn-intake-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:stretch;margin-top:20px}
+ .vn-intake-left{display:grid;gap:16px;align-content:start;min-width:0}
+ .vn-intake-left>.field,.vn-intake-left>label{margin:0;min-width:0}
+ .vn-intake-left>label>input,.vn-intake-left>label>select{display:block;margin-top:7px}
+ .vn-intake-left>[hidden]{display:none!important}
+ .vn-intake-remark{display:flex;flex-direction:column;gap:7px;margin:0;min-width:0}
+ .vn-intake-remark>textarea{display:block;flex:1;min-height:260px;line-height:1.6;margin:0;resize:vertical}
+ @media(max-width:640px){.vn-intake-grid{grid-template-columns:1fr;gap:20px}.vn-intake-remark>textarea{min-height:200px}}
+
  .vn-source-choice{background:#f8fafc;border:2px solid #f59e0b;border-radius:10px;padding:10px 12px;margin:10px 0 14px}
  .vn-source-choice h3{font-family:Arial,sans-serif;font-size:16px;font-weight:600;margin:0 0 8px;color:#14274c}
  .vn-source-choice.chosen{border-color:#9db0c8;background:#f8fafc}
@@ -56,22 +65,12 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
- // Only System Admin may select the originating department for this job.
+ // System Admin is the origin identity; no department selector.
  const originLabel=document.createElement('label');originLabel.hidden=true;
- originLabel.textContent='แผนกผู้แจ้ง *';
- const origin=document.createElement('select');origin.id='vnFromDepartment';
- originLabel.append(origin);vnHeader.prepend(originLabel);
- function refreshOrigin(){
-  const isAdmin=QA.profile?.role==='system_admin';originLabel.hidden=!isAdmin;
-  origin.disabled=!isAdmin;origin.required=isAdmin;
-  if(!isAdmin)return;
-  const previous=origin.value;origin.replaceChildren(new Option('-- เลือกแผนกผู้แจ้ง --',''));
-  for(const item of QA.createDepartments||[]){if(item.active===false)continue;origin.append(new Option(item.code+(item.name&&item.name!==item.code?' · '+item.name:''),item.code));}
-  const codes=[...origin.options].map(o=>o.value);
-  const selected=previous||String(QA.profile.department||'').trim();
-  if(codes.includes(selected))origin.value=selected;
- }
- window.addEventListener('qa:create-settings',refreshOrigin);
+ originLabel.textContent='ผู้แจ้ง';
+ const origin=document.createElement('input');origin.id='vnAdminOrigin';origin.readOnly=true;origin.value='System Admin';
+ originLabel.append(origin);
+ function refreshOrigin(){originLabel.hidden=QA.profile?.role!=='system_admin';}
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
@@ -80,6 +79,13 @@
   b.onclick=()=>{source.value=key;chooser.classList.add('chosen');[...buttons.children].forEach(x=>{x.classList.toggle('active',x.dataset.value===key);x.setAttribute('aria-pressed',String(x.dataset.value===key))})};
   buttons.append(b);
  });chooser.append(buttons);top?.insertBefore(chooser,top.querySelector('.grid'));[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});
+ // Keep related fields together; Remark occupies the second column.
+ const intake=document.createElement('div');intake.className='vn-intake-grid';
+ const left=document.createElement('div');left.className='vn-intake-left';
+ const serialField=$('serialNo').closest('.field');const oldGrid=serialField.closest('.grid');
+ left.append(serialField,$('vnCustomer').closest('label'),$('vnCountry').closest('label'),originLabel);
+ remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake);
+ vnHeader.style.display='none';if(oldGrid)oldGrid.style.display='none';
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
  const oldImages=$('imageInput').closest('.card');oldImages.style.display='none';
@@ -119,12 +125,12 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(QA.profile?.role==='system_admin'&&(!origin.value||!(QA.createDepartments||[]).some(d=>d.active!==false&&d.code===origin.value)))throw new Error('กรุณาเลือกแผนกผู้แจ้งก่อนแจ้งงาน');if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
  return {category_code:p.category,description:p.description.trim(),departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
  customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
- if(QA.profile?.role==='system_admin')header.fromDepartment=origin.value;
+ if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';
  return {issues,header};}
  async function uploadMedia(jobId){for(let n=0;n<problems.length;n++){
  const issue=problems[n];if(!issue.uploaded)issue.uploaded=new Map();
@@ -168,7 +174,7 @@
   const infoField=(name,value)=>'<div style="display:grid;grid-template-columns:134px minmax(0,1fr);column-gap:10px;align-items:start;line-height:1.6;overflow-wrap:anywhere"><b>'+name+'</b><span style="white-space:pre-wrap">'+esc(value||'-')+'</span></div>';
   hdr.innerHTML='<b style="display:block;font-size:20px;margin:0 0 16px">1. ข้อมูลการแจ้งเรื่อง</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:11px 22px">'+infoField('ประเภท:', $('vnSource').value)+infoField('Serial:', $('serialNo').value)+infoField('Customer:', $('vnCustomer').value)+infoField('Country:', $('vnCountry').value)+'</div><div style="margin-top:12px">'+infoField('Remark:', $('vnRemark').value)+'</div>';host.append(hdr);
   for(const {p,i} of matching){const block=document.createElement('section');block.style.cssText='padding:20px 22px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:22px;page-break-inside:avoid';
-   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category))+infoField('ฝ่ายผู้แจ้ง:',String(QA.profile?.department||'').trim()||'-')+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
+   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category))+infoField('ฝ่ายผู้แจ้ง:',QA.profile?.role==='system_admin'?'System Admin':(String(QA.profile?.department||'').trim()||'-'))+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
    for(const [fileIndex,f] of p.images.entries()){
     const item=document.createElement('div');item.style.cssText='width:170px;max-width:170px;break-inside:avoid;overflow-wrap:anywhere';
