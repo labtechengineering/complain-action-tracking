@@ -336,7 +336,7 @@
     const reviewer=document.getElementById('qaInspector');
     if(reviewer?.tagName==='INPUT') {reviewer.value=p.display_name;reviewer.defaultValue=p.display_name;reviewer.readOnly=true;}
     const form=document.getElementById('jobForm');
-    if(form && (p.role==='viewer' || !String(p.department||'').trim())) {
+    if(form && (p.role==='viewer' || (p.role!=='system_admin' && !String(p.department||'').trim()))) {
       form.querySelectorAll('input,select,textarea,button').forEach(e=>e.disabled=true);
       QA.notify(p.role==='viewer'
         ? 'บัญชี Viewer ดูข้อมูลได้อย่างเดียว ไม่สามารถสร้างใบงานใหม่ได้'

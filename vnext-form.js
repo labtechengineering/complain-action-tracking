@@ -56,6 +56,22 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
+ // Only System Admin may select the originating department for this job.
+ const originLabel=document.createElement('label');originLabel.hidden=true;
+ originLabel.textContent='แผนกผู้แจ้ง *';
+ const origin=document.createElement('select');origin.id='vnFromDepartment';
+ originLabel.append(origin);vnHeader.prepend(originLabel);
+ function refreshOrigin(){
+  const isAdmin=QA.profile?.role==='system_admin';originLabel.hidden=!isAdmin;
+  origin.disabled=!isAdmin;origin.required=isAdmin;
+  if(!isAdmin)return;
+  const previous=origin.value;origin.replaceChildren(new Option('-- เลือกแผนกผู้แจ้ง --',''));
+  for(const item of QA.createDepartments||[]){if(item.active===false)continue;origin.append(new Option(item.code+(item.name&&item.name!==item.code?' · '+item.name:''),item.code));}
+  const codes=[...origin.options].map(o=>o.value);
+  const selected=previous||String(QA.profile.department||'').trim();
+  if(codes.includes(selected))origin.value=selected;
+ }
+ window.addEventListener('qa:create-settings',refreshOrigin);
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
@@ -103,11 +119,12 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ function collect(){save();if(QA.profile?.role==='system_admin'&&(!origin.value||!(QA.createDepartments||[]).some(d=>d.active!==false&&d.code===origin.value)))throw new Error('กรุณาเลือกแผนกผู้แจ้งก่อนแจ้งงาน');if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
  return {category_code:p.category,description:p.description.trim(),departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
  customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
+ if(QA.profile?.role==='system_admin')header.fromDepartment=origin.value;
  return {issues,header};}
  async function uploadMedia(jobId){for(let n=0;n<problems.length;n++){
  const issue=problems[n];if(!issue.uploaded)issue.uploaded=new Map();
@@ -215,6 +232,7 @@
  finally{busy=false;baseSubmit.disabled=false;}}
  $('jobForm').addEventListener('submit',submit,true);
  async function init(){try{for(let i=0;i<140&&!QA.profile;i++)await new Promise(r=>setTimeout(r,100));if(!QA.profile)throw new Error('Login ไม่พร้อม');
+ refreshOrigin();
  receivers=await rpc('qa_vnext_receivers',{});if(!Array.isArray(receivers))throw new Error('Receiving Settings ไม่พร้อม');
  render();}catch(e){status('VNext ใช้งานไม่ได้: '+err(e),true);baseSubmit.disabled=true;}}
  // The legacy category options load asynchronously.
