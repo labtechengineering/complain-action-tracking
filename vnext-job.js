@@ -1,7 +1,7 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
 async function loadCategoryNames(){const {data,error}=await QA.client.from('qa_settings').select('code,name').eq('setting_type','CATEGORY').range(0,999);if(error)throw error;categoryNames=new Map((data||[]).map(x=>[String(x.code),String(x.name||'')]));}
-function categoryName(code){const key=String(code||'');return categoryNames.get(key)||'ไม่พบชื่อประเภทปัญหา';}
+function categoryName(code,other=''){const key=String(code||'');return (categoryNames.get(key)||'ไม่พบชื่อประเภทปัญหา')+(String(other).trim()?': '+String(other).trim():'');}
 const setNote=(s,bad=false)=>{$('feedback').textContent=s;$('feedback').style.color=bad?'#b91c1c':'#166534';};
 async function rpc(name,args){const {data,error}=await QA.client.rpc(name,args);if(error)throw error;return data;}
 function label(s){return QAStatus.label(QAStatus.canonical(s));}
@@ -38,7 +38,7 @@ async function receiverChangePng(ev){await ensureHtml2Canvas();
  ${escField('เลขใบงาน',detail.car_code||jobId)}${escField('ประเภทงาน',detail.source_type)}
  ${escField('Serial Number',detail.serial_no)}${escField('ลูกค้า',detail.customer_name)}
  ${escField('ประเทศ',detail.country)}${escField('ฝ่ายผู้แจ้ง',detail.from_department==='SYSTEM'?'System Admin':detail.from_department)}
- ${escField('Category',categoryName(issue?.category_code))}
+ ${escField('Category',categoryName(issue?.category_code,issue?.category_other||''))}
  ${escField('รายละเอียดปัญหา',issue?.description)}
  ${escField('ฝ่ายรับเรื่องเดิม',(ev.old_departments||[]).join(', '))}
  ${escField('ฝ่ายรับเรื่องใหม่',(ev.new_departments||[]).join(', '))}
@@ -184,7 +184,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
    if(displayedIssues.has(uniqueKey))continue;
    displayedIssues.add(uniqueKey);
 
-   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}-${esc(a.assignment_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}" data-original-department="${esc(a.department_code)}"><b>เปลี่ยนฝ่ายรับเรื่องจาก ${esc(a.department_code)} (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="radio" name="receiver-${esc(a.assignment_id)}-${esc(i.issue_id)}" value="${esc(d.code)}">${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}-${esc(a.assignment_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code,i.category_other||''))}</span></h3><p>${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}<b>ไฟล์แนบจากผู้แจ้ง</b>${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}" data-original-department="${esc(a.department_code)}"><b>เปลี่ยนฝ่ายรับเรื่องจาก ${esc(a.department_code)} (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="radio" name="receiver-${esc(a.assignment_id)}-${esc(i.issue_id)}" value="${esc(d.code)}">${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -356,7 +356,7 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const {issue:i,assignments:related} of [...issues.values()].sort((a,b)=>Number(a.issue.issue_number)-Number(b.issue.issue_number))){
   const fold=document.createElement('details');fold.className='issue-disclosure'+(compactAdmin?' admin-compact-issue':'');fold.dataset.issueId=String(i.issue_id);fold.dataset.assignmentIds=related.map(a=>String(a.assignment_id)).join(',');
   fold.innerHTML='<summary aria-label="ปัญหา '+esc(i.issue_number)+': '+esc(i.description)+'"><span class="issue-row-number">'+esc(i.issue_number)+'.</span><span class="issue-row-description" title="'+esc(i.description)+'">'+esc(i.description)+'</span><span class="issue-row-departments">'+related.map(a=>'<span class="issue-department-state"><span class="issue-responsible-department">'+esc(a.department_code)+'</span>'+badge(a)+'</span>').join('')+'</span><span class="issue-row-chevron" aria-hidden="true"></span></summary>';
-  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML=(compactAdmin?'<p class="admin-issue-reference">'+esc(sourceCards.get(String(related[0].assignment_id)+':'+String(i.issue_id))?.dataset.referenceCode||'')+' · '+esc(categoryName(i.category_code))+'</p>':'')+'<p class="expanded-issue-description">'+esc(i.description)+'</p><div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden>การดำเนินงาน</h3><div class="issue-operation-host" hidden></div>';fold.append(body);
+  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML=(compactAdmin?'<p class="admin-issue-reference">'+esc(sourceCards.get(String(related[0].assignment_id)+':'+String(i.issue_id))?.dataset.referenceCode||'')+' · '+esc(categoryName(i.category_code,i.category_other||''))+'</p>':'')+'<p class="expanded-issue-description">'+esc(i.description)+'</p><div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden>การดำเนินงาน</h3><div class="issue-operation-host" hidden></div>';fold.append(body);
   const mount=()=>{
    if(activeIssue===fold)return;
    for(const other of folds)if(other!==fold)other.open=false;
@@ -516,7 +516,7 @@ async function exportStructuredPdf(preview){
  for(const a of detail.assignments||[]){
    const sec=section('2. รายละเอียดปัญหา / ฝ่ายรับเรื่อง '+a.department_code);
    for(const i of a.issues||[]){
-     index++;table(sec,[['ปัญหาที่ '+index, 'ประเภท: '+categoryName(i.category_code)+'\n'+(i.description||'-')]]);
+     index++;table(sec,[['ปัญหาที่ '+index, 'ประเภท: '+categoryName(i.category_code,i.category_other||'')+'\n'+(i.description||'-')]]);
      const files=media.filter(m=>m.scope==='ISSUE'&&m.issue_id===i.issue_id);await addMedia(sec,files);
    }
    if(QAWorkflow.awaitingDepartmentWork(a)){if(String(a.system_accept_comment||'').trim())table(sec,[['หมายเหตุจาก System Admin (รับงานแทน)',a.system_accept_comment]]);continue;}

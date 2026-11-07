@@ -19,9 +19,9 @@
  .vn-intake-left{display:grid;gap:16px;align-content:start;min-width:0}
  .vn-intake-left>.field,.vn-intake-left>label{margin:0;min-width:0}
  .vn-intake-left>label>input,.vn-intake-left>label>select{display:block;margin-top:7px}
- .vn-intake-left>[hidden]{display:none!important}
+ .vn-intake-left>[hidden],.vn-card>label[hidden]{display:none!important}
  .vn-intake-remark{display:flex;flex-direction:column;gap:7px;margin:0;min-width:0}
- .vn-intake-remark>textarea{display:block;flex:1;min-height:260px;line-height:1.6;margin:0;resize:vertical}
+ .vn-intake-remark>textarea{display:block;flex:1;min-height:0px;line-height:1.6;margin:0;resize:vertical}
  @media(max-width:640px){.vn-intake-grid{grid-template-columns:1fr;gap:20px}.vn-intake-remark>textarea{min-height:200px}}
 
  .vn-source-choice{background:#f8fafc;border:2px solid #f59e0b;border-radius:10px;padding:10px 12px;margin:10px 0 14px}
@@ -49,7 +49,7 @@
  .vn-card > .vn-file-grid{margin:12px 0 2px}
  .vn-card .vn-file-item textarea{margin-top:7px}
  `;document.head.append(style);
- function create(){return {id:++seq,images:[],video:[],notes:{},category:'',description:'',departments:[]};}
+ function create(){return {id:++seq,images:[],video:[],notes:{},category:'',other:'',description:'',departments:[]};}
  problems.push(create());
  const oldProblem=$('problemDetail')?.closest('.card');if(!oldProblem)return;
  const panel=document.createElement('section');panel.className='card';panel.id='vnPanel';
@@ -65,12 +65,6 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
- // System Admin is the origin identity; no department selector.
- const originLabel=document.createElement('label');originLabel.hidden=true;
- originLabel.textContent='ผู้แจ้ง';
- const origin=document.createElement('input');origin.id='vnAdminOrigin';origin.readOnly=true;origin.value='System Admin';
- originLabel.append(origin);
- function refreshOrigin(){originLabel.hidden=QA.profile?.role!=='system_admin';}
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
@@ -83,7 +77,7 @@
  const intake=document.createElement('div');intake.className='vn-intake-grid';
  const left=document.createElement('div');left.className='vn-intake-left';
  const serialField=$('serialNo').closest('.field');const oldGrid=serialField.closest('.grid');
- left.append(serialField,$('vnCustomer').closest('label'),$('vnCountry').closest('label'),originLabel);
+ left.append(serialField,$('vnCustomer').closest('label'),$('vnCountry').closest('label'));
  remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake);
  vnHeader.style.display='none';if(oldGrid)oldGrid.style.display='none';
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
@@ -94,17 +88,23 @@
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
- function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
+ function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
   const opt=[...$('category').options].filter(x=>x.value).map(x=>`<option value="${esc(x.value)}">${esc(x.textContent)}</option>`).join('');
   box.innerHTML=`<div class="vn-row" style="align-items:center"><h3>ปัญหา ${i+1}</h3>${problems.length>1?'<button type="button" class="vn-btn vn-remove">ลบปัญหานี้</button>':''}</div>
   <label>ประเภทปัญหา *<select class="vn-category" required><option value="">-- เลือก Category --</option>${opt}</select></label>
+  <label class="vn-other-label" hidden>ระบุประเภทปัญหา *<input class="vn-other-detail" type="text" maxlength="120" placeholder="ระบุสั้นๆ เช่น ปัญหางานเอกสาร"></label>
   <label>รายละเอียดปัญหา *<textarea class="vn-detail" maxlength="20000" required></textarea></label>
   <strong>ฝ่ายรับเรื่อง * (เลือกได้มากกว่า 1)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
   <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="image/jpeg,image/png,image/webp" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
   <p class="vn-files"></p><div class="vn-file-grid"></div>`;
   box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;
+  const category=box.querySelector('.vn-category'),other=box.querySelector('.vn-other-detail'),otherLabel=box.querySelector('.vn-other-label');
+  other.value=p.other||'';
+  const syncOther=()=>{const show=isOtherCategory(category.value);otherLabel.hidden=!show;other.required=show;if(!show){other.value='';p.other='';}};
+  category.onchange=()=>{p.category=category.value;syncOther();if(other.required)other.focus();};other.oninput=()=>p.other=other.value;syncOther();
+
   for(const ch of box.querySelectorAll('.vn-dept'))ch.checked=p.departments.includes(ch.value);
   box.querySelector('.vn-images').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.images.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
   box.querySelector('.vn-video').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.video.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
@@ -127,7 +127,8 @@
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
  function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
- return {category_code:p.category,description:p.description.trim(),departments:p.departments};});
+ if(isOtherCategory(p.category)&&!String(p.other||'').trim())throw new Error(`ปัญหา ${i+1}: กรุณาระบุประเภทปัญหาอื่นๆ`);
+ return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
  customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
  if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';
@@ -164,7 +165,8 @@
 
  async function loadScreenshot(){if(window.html2canvas)return;
   await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('ไม่สามารถโหลดตัวสร้างภาพ LINE'));document.head.append(s);});}
- function categoryDisplayName(code){const option=[...$('category').options].find(o=>o.value===code);return option?.textContent?.trim()||'ไม่พบชื่อประเภทปัญหา';}
+ function isOtherCategory(code){const option=[...$('category').options].find(o=>o.value===code);return /^(OTHER|OTHERS)$/i.test(String(code).trim())||/อื่น|\bothers?\b/i.test(option?.textContent||'');}
+ function categoryDisplayName(code,other=''){const option=[...$('category').options].find(o=>o.value===code);const name=option?.textContent?.trim()||'ไม่พบชื่อประเภทปัญหา';return name+(isOtherCategory(code)&&other.trim()?': '+other.trim():'');}
  async function makeJobImage(jobId){await loadScreenshot();
   const matching=problems.map((p,i)=>({p,i}));
   const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:960px;background:#fff;padding:36px;font:18px Arial,Tahoma,sans-serif;line-height:1.65;z-index:999999;color:#172337';
@@ -174,7 +176,7 @@
   const infoField=(name,value)=>'<div style="display:grid;grid-template-columns:134px minmax(0,1fr);column-gap:10px;align-items:start;line-height:1.6;overflow-wrap:anywhere"><b>'+name+'</b><span style="white-space:pre-wrap">'+esc(value||'-')+'</span></div>';
   hdr.innerHTML='<b style="display:block;font-size:20px;margin:0 0 16px">1. ข้อมูลการแจ้งเรื่อง</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:11px 22px">'+infoField('ประเภท:', $('vnSource').value)+infoField('Serial:', $('serialNo').value)+infoField('Customer:', $('vnCustomer').value)+infoField('Country:', $('vnCountry').value)+'</div><div style="margin-top:12px">'+infoField('Remark:', $('vnRemark').value)+'</div>';host.append(hdr);
   for(const {p,i} of matching){const block=document.createElement('section');block.style.cssText='padding:20px 22px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:22px;page-break-inside:avoid';
-   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category))+infoField('ฝ่ายผู้แจ้ง:',QA.profile?.role==='system_admin'?'System Admin':(String(QA.profile?.department||'').trim()||'-'))+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
+   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category,p.other||''))+infoField('ฝ่ายผู้แจ้ง:',QA.profile?.role==='system_admin'?'System Admin':(String(QA.profile?.department||'').trim()||'-'))+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
    for(const [fileIndex,f] of p.images.entries()){
     const item=document.createElement('div');item.style.cssText='width:170px;max-width:170px;break-inside:avoid;overflow-wrap:anywhere';
@@ -238,7 +240,6 @@
  finally{busy=false;baseSubmit.disabled=false;}}
  $('jobForm').addEventListener('submit',submit,true);
  async function init(){try{for(let i=0;i<140&&!QA.profile;i++)await new Promise(r=>setTimeout(r,100));if(!QA.profile)throw new Error('Login ไม่พร้อม');
- refreshOrigin();
  receivers=await rpc('qa_vnext_receivers',{});if(!Array.isArray(receivers))throw new Error('Receiving Settings ไม่พร้อม');
  render();}catch(e){status('VNext ใช้งานไม่ได้: '+err(e),true);baseSubmit.disabled=true;}}
  // The legacy category options load asynchronously.
