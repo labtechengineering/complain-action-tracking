@@ -112,6 +112,12 @@
   const isLogin = currentPage==='login';
   const isSignup = currentPage==='signup';
   const messageMap = {
+    DEPARTMENT_CREATION_CLOSED: 'ปิดรับแผนกใหม่แล้ว กรุณาเลือกแผนกที่มีอยู่หรือติดต่อผู้ดูแล',
+    DEPARTMENT_CODE_INVALID: 'รหัสแผนกต้องเป็น A-Z, 0-9 หรือขีดกลาง ความยาว 1–20 ตัว',
+    DEPARTMENT_CODE_RESERVED: 'รหัสนี้สงวนไว้สำหรับระบบ กรุณาใช้รหัสแผนกอื่น',
+    DEPARTMENT_NAME_INVALID: 'ชื่อแผนกต้องยาว 2–120 ตัวอักษร',
+    DEPARTMENT_INACTIVE: 'แผนกนี้ถูกปิดใช้งาน กรุณาติดต่อผู้ดูแล',
+    DEPARTMENT_ALREADY_EXISTS: 'มีแผนกนี้แล้ว กรุณาโหลดหน้าใหม่แล้วเลือกแผนกที่มีอยู่',
     AUTH_REQUIRED: 'กรุณาเข้าสู่ระบบ',
     PROFILE_NOT_ACTIVE: 'บัญชีนี้ยังรอการอนุมัติ หรือถูกปิดการใช้งาน',
     SYSTEM_ADMIN_REQUIRED: 'เมนูนี้สำหรับ System Admin เท่านั้น',
@@ -265,6 +271,18 @@
           for(const d of depts||[]){const o=document.createElement('option');o.value=d.code;o.textContent=d.code;sel.append(o);}
         } catch(e){document.getElementById('signupError').textContent=errorOf(e).message;}
         const deptRequestBtn=document.getElementById('departmentRequestBtn');
+        const deptCreationPanel=document.getElementById('departmentCreationPanel');
+        const deptCreationNotice=document.getElementById('departmentCreationNotice');
+        try {
+          const policy=await withTimeout(rpc('qa_public_department_creation_policy',{}),10000,'DEPARTMENT_POLICY_TIMEOUT');
+          if(policy?.allowCreation===true){
+            if(deptCreationPanel) deptCreationPanel.hidden=false;
+            if(deptRequestBtn) deptRequestBtn.disabled=false;
+            if(deptCreationNotice) deptCreationNotice.textContent='';
+          } else if(deptCreationNotice) deptCreationNotice.textContent='ปิดรับแผนกใหม่แล้ว เลือกแผนกที่มีอยู่หรือติดต่อผู้ดูแล';
+        } catch(e){
+          if(deptCreationNotice) deptCreationNotice.textContent='ยังตรวจสอบการเปิดรับแผนกใหม่ไม่ได้ กรุณาลองโหลดหน้าใหม่ หากมีแผนกอยู่แล้วสามารถสมัครต่อได้';
+        }
         if(deptRequestBtn) deptRequestBtn.addEventListener('click',async()=>{
           const box=document.getElementById('departmentRequestMsg');box.textContent='';
           const code=document.getElementById('newDepartmentCode').value.trim();
@@ -276,8 +294,19 @@
           try{
             const result=await withTimeout(rpc('qa_request_department',{p_code:code,p_name:name,p_requester_name:requesterName,p_requester_email:requesterEmail}),10000,'DEPARTMENT_REQUEST_TIMEOUT');
             if(!result?.success) throw new Error('ส่งคำขอไม่สำเร็จ');
-            box.style.color='#166534';box.textContent='ส่งคำขอเพิ่มแผนก '+result.code+' แล้ว กรุณารอ System Admin อนุมัติ แล้วกลับมารีเฟรชหน้านี้เพื่อสมัครสมาชิก';
-          }catch(err){box.style.color='#b91c1c';box.textContent=errorOf(err).message;}finally{deptRequestBtn.disabled=false;}
+            const sel=document.getElementById('department');
+            let option=Array.from(sel.options).find(o=>o.value===result.code);
+            if(!option){option=document.createElement('option');option.value=result.code;option.textContent=result.code;sel.append(option);}
+            sel.value=result.code;
+            sel.dispatchEvent(new Event('change',{bubbles:true}));
+            box.style.color='#166534';box.textContent=(result.status==='EXISTING'?'เลือกแผนกเดิม ':'เพิ่มแผนก ')+result.code+' แล้ว สมัครสมาชิกต่อได้ทันที';
+          }catch(err){
+            box.style.color='#b91c1c';box.textContent=errorOf(err).message;
+            if(String(err?.message||'').includes('DEPARTMENT_CREATION_CLOSED')){
+              if(deptCreationPanel) deptCreationPanel.hidden=true;
+              if(deptCreationNotice) deptCreationNotice.textContent=errorOf(err).message;
+            }
+          }finally{deptRequestBtn.disabled=!!deptCreationPanel?.hidden;}
         });
         document.getElementById('signupForm').addEventListener('submit',async e=>{
           e.preventDefault();const btn=document.getElementById('signupBtn');btn.disabled=true;
