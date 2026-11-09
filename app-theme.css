@@ -181,11 +181,9 @@ html[data-theme="soft"] .stat[data-status=all]:not(.active) .theme-stat-icon{bac
 html[data-theme="soft"] .stat.active{background:radial-gradient(ellipse at 95% 0%,#5b9ad4a8,transparent 65%),linear-gradient(125deg,#315f90,#18395e 70%,#102b4a)!important;border-color:#416c98!important;box-shadow:0 12px 26px -7px #173f7270,inset 0 1px 0 #ffffff38!important;outline:2px solid #779cc7;outline-offset:2px}
 html[data-theme="soft"] .stat.active>span:not(.theme-stat-icon){color:#e1ebf8}
 html[data-theme="soft"] .stat.active strong{color:#fff}
-html[data-theme="soft"] .legend-action.selected,html[data-theme="soft"] .chart-dept.selected{background:linear-gradient(130deg,#eaf3ff,#d9e8fa)!important;color:#173b65!important;outline:2px solid #527ca9;outline-offset:1px;box-shadow:0 3px 7px #294e791a!important}
+html[data-theme="soft"] .legend-action.selected{background:linear-gradient(130deg,#eaf3ff,#d9e8fa)!important;color:#173b65!important;outline:2px solid #527ca9;outline-offset:1px;box-shadow:0 3px 7px #294e791a!important}
 html[data-theme="soft"] .legend-row.selected{border-radius:8px;padding-left:8px;padding-right:8px}
 html[data-theme="soft"] .bar-segment.selected{outline:none!important;box-shadow:inset 0 0 0 2px #143553,inset 0 0 0 4px #ffffffb3!important;filter:brightness(1.06)}
-html[data-theme="soft"] .chart-dept.selected{border-radius:6px;padding-left:7px;padding-right:7px}
-html[data-theme="soft"] .bar-total.selected{height:auto;min-height:20px;margin-bottom:4px}
 html[data-theme="soft"] .qa-side-logo{height:auto;aspect-ratio:2048/514;padding:0!important;background:#fff!important;border-radius:9px;overflow:hidden}
 html[data-theme="soft"] .qa-side-logo img{display:block;width:100%;height:100%;object-fit:contain;object-position:center;background:#fff}
 /* Donut legend has no frame until the user selects a status. */
@@ -296,9 +294,8 @@ html[data-theme="soft"] .job-tracker.is-mixed .track-node{background:linear-grad
 /* Show each coloured part's count for the selected bar/status without changing bar heights. */
 html[data-theme="soft"] .bar-segment{position:relative}
 html[data-theme="soft"] .bar-part-count{display:none;pointer-events:none}
-html[data-theme="soft"] .bar-part-count.is-visible{display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font:700 13px/1.2 'Noto Sans Thai',Tahoma,sans-serif;color:#102b44;text-shadow:0 1px 2px #ffffffa6;white-space:nowrap}
+html[data-theme="soft"] .bar-part-count.is-visible{display:block;position:absolute;top:50%;left:calc(100% + 8px);transform:translateY(-50%);font:700 13px/1.2 'Noto Sans Thai',Tahoma,sans-serif;color:#102b44;white-space:nowrap;z-index:2}
 html[data-theme="soft"] .bar-item:has(.bar-part-count.is-visible) .bar-stack{overflow:visible}
-html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px);transform:translateY(-50%);background:#fff;border:1px solid #b7cbe0;border-radius:4px;padding:1px 4px;font-size:11px;z-index:2;box-shadow:0 2px 4px #1c3b571a}
 
 /* Balanced dashboard: readable text, six rows, charts use remaining screen height. */
 @media (min-width:768px) and (min-height:600px) {
@@ -387,3 +384,6 @@ html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px
 @media (min-width:768px) and (max-width:800px) and (min-height:600px) {
  html[data-theme="soft"] .dashboard-compact .main{padding-left:17px!important;padding-right:17px!important}
 }
+
+/* Reserve room for the selected colour count beside the last bar as well. */
+html[data-theme="soft"] .dashboard-compact .plot{padding-right:36px}
