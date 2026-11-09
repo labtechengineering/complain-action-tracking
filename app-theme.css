@@ -264,3 +264,31 @@ html[data-theme="soft"] td :is(input,select){font-size:14px}
  html[data-theme="soft"] .donutpanel .donut-layout{flex-wrap:wrap;justify-content:center}
  html[data-theme="soft"] .donut-legend{flex-basis:100%;max-width:320px}
 }
+
+/* Navy menu runs from dark at top to lighter blue at bottom. */
+html[data-theme="soft"] .qa-sidebar{background:linear-gradient(180deg,#10243d 0%,#193a5d 38%,#315778 72%,#486f90 100%)!important}
+html[data-theme="soft"] .qa-side-footer{background:#17355038;border-top-color:#ffffff26;color:#edf4ff}
+html[data-theme="soft"] .qa-side-icon{color:#d2e2f3}
+/* Parcel-tracking style: raised nodes, a travelling highlight and a gentle current-step ripple. */
+html[data-theme="soft"] .job-tracker{--track:#2365a3;--done:#26926a;--soft:#dbeaff;box-shadow:0 12px 28px -12px #203f694d,0 3px 8px #203f6914!important}
+html[data-theme="soft"] .tracker-stages .track-node{width:48px;height:48px;border-width:2px;background:linear-gradient(145deg,#fff,#e9eff7);box-shadow:0 5px 10px -4px #294d7638,inset 0 1px 0 #fff!important}
+html[data-theme="soft"] .tracker-stages::before{height:5px;background:#d7e2ef;box-shadow:inset 0 1px 2px #28476926;top:37px}
+html[data-theme="soft"] .tracker-stages::after{height:5px;top:37px;background:linear-gradient(90deg,#26926a,#458fc7,#9bdaff,#2365a3);background-size:220% 100%;box-shadow:0 2px 7px #3474aa40;transition:width .55s ease}
+html[data-theme="soft"] .tracker-stages:has(.current:not([data-step="CLOSED"]))::after{animation:qa-track-travel 3s linear infinite}
+html[data-theme="soft"] .tracker-stages .track-stage.done{color:#18704f}
+html[data-theme="soft"] .tracker-stages .track-stage.done .track-node{background:linear-gradient(145deg,#f2fff8,#cceee0);border-color:#4baf88;box-shadow:0 5px 10px -4px #22815a50,inset 0 1px 0 #fff!important}
+html[data-theme="soft"] .tracker-stages .track-stage.current{color:#174f86;font-weight:700}
+html[data-theme="soft"] .tracker-stages .track-stage.current .track-node{background:linear-gradient(140deg,#448fc9,#2365a3 55%,#174975);border-color:#306da5;color:#fff;font-weight:700;box-shadow:0 0 0 6px #e2effb,0 7px 15px #1e60994d,inset 0 1px 0 #ffffff80!important;animation:none;isolation:isolate}
+html[data-theme="soft"] .tracker-stages .track-stage.current:not([data-step="CLOSED"]) .track-node::before{content:"";position:absolute;inset:2px;border-radius:50%;z-index:-1;background:linear-gradient(115deg,transparent 28%,#ffffff50 48%,transparent 65%);background-size:240% 100%;animation:qa-track-shine 3.2s ease-in-out infinite;pointer-events:none}
+html[data-theme="soft"] .tracker-stages .track-stage.current:not([data-step="CLOSED"]) .track-node::after{inset:-7px;border:2px solid #4b92cf80;animation:qa-track-ripple 2.6s ease-out infinite;pointer-events:none}
+html[data-theme="soft"] .tracker-stages .track-stage.current[data-step="CLOSED"]{color:#18704f}
+html[data-theme="soft"] .tracker-stages .track-stage.current[data-step="CLOSED"] .track-node{background:linear-gradient(140deg,#3eaf85,#1e7f5b);border-color:#218661;box-shadow:0 0 0 6px #e2f3eb,0 7px 15px #1f805b40!important}
+html[data-theme="soft"] .tracker-stages .track-stage.current[data-step="CLOSED"] .track-node::after{border-color:#2c98693d}
+html[data-theme="soft"] .job-tracker.is-mixed .tracker-stages::after{animation:none;box-shadow:none}
+html[data-theme="soft"] .job-tracker.is-mixed .track-node{background:linear-gradient(145deg,#fff,#edf2f8);color:#62758d}
+@keyframes qa-track-travel{from{background-position:100% 0}to{background-position:-120% 0}}
+@keyframes qa-track-shine{0%,20%{background-position:140% 0}70%,100%{background-position:-100% 0}}
+@keyframes qa-track-ripple{0%{transform:scale(.94);opacity:.8}80%,100%{transform:scale(1.35);opacity:0}}
+@media(max-width:680px){html[data-theme="soft"] .tracker-stages .track-node{width:39px;height:39px;font-size:17px}html[data-theme="soft"] .tracker-stages::before,html[data-theme="soft"] .tracker-stages::after{top:32px}}
+@media(prefers-reduced-motion:reduce){html[data-theme="soft"] .tracker-stages::after,html[data-theme="soft"] .tracker-stages .track-node::before,html[data-theme="soft"] .tracker-stages .track-node::after{animation:none!important}}
+@media print{html[data-theme="soft"] .tracker-stages::after,html[data-theme="soft"] .tracker-stages .track-node::before,html[data-theme="soft"] .tracker-stages .track-node::after{animation:none!important}}
