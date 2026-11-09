@@ -42,6 +42,26 @@ function compareLatestIssueRows(a,b){
 }
 
 let all=[],base=[],selected='all',selectedDept='',expanded=false,page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0,globalAggregate=null,summaryRequest=0;const pageSize=20;
+// Use the actual rendered header/cards/list height, rather than guessing a screen scale.
+let dashboardFitFrame=0;
+function scheduleDashboardFit(){
+ cancelAnimationFrame(dashboardFitFrame);
+ dashboardFitFrame=requestAnimationFrame(()=>{
+  const charts=document.querySelector('.charts'),main=document.querySelector('main.main');
+  if(!charts||!main)return;
+  const enabled=document.documentElement.dataset.theme==='soft'&&window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
+  if(!enabled){charts.style.removeProperty('--qa-dashboard-chart-height');return;}
+  if(expanded)return;
+  const currentHeight=charts.getBoundingClientRect().height;
+  const mainBottom=main.getBoundingClientRect().bottom+window.scrollY;
+  const remaining=Math.floor(window.innerHeight-mainBottom+currentHeight-8);
+  const target=Math.max(156,Math.min(340,remaining));
+  const value=target+'px';
+  if(charts.style.getPropertyValue('--qa-dashboard-chart-height')!==value)
+   charts.style.setProperty('--qa-dashboard-chart-height',value);
+  renderCharts(selectedGlobalCounts());
+ });
+}
 function bangkokKey(j){const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
 function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
@@ -117,14 +137,14 @@ function toggleChartFilter(status='',dept=''){
 }
 function renderCharts(counts){
  // Scale every segment by the same available plot height; counts/proportions stay unchanged.
- const compact=window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
+ const compact=document.documentElement.dataset.theme==='soft'&&window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
  const plotHeight=$('plot').clientHeight;
- const barHeight=compact&&plotHeight>44?Math.max(20,plotHeight-44):178;
+ const barHeight=compact?Math.max(8,plotHeight-52):178;
  const depts=receiverCodes||[];
  const byDept=new Map(depts.map(d=>[d,{IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0}]));
  for(const e of globalAggregate?.departments||[]){const x=byDept.get(e.department);if(x&&x[e.status]!==undefined)x[e.status]+=Number(e.count)||0;}
  const max=Math.max(1,...depts.map(d=>Object.values(byDept.get(d)).reduce((x,y)=>x+y,0)));
- const ticks=4;
+ const ticks=Math.min(4,max);
  $('axis').innerHTML=Array.from({length:ticks+1},(_,i)=>`<span>${Math.round(max*(ticks-i)/ticks)}</span>`).join('');
  $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action ${selected===s&&!selectedDept?'selected':''}" data-chart-status="${s}" title="กรอง ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
  $('plot').innerHTML=depts.length?depts.map(d=>{const cc=byDept.get(d),total=Object.values(cc).reduce((a,b)=>a+b,0);
@@ -176,17 +196,19 @@ function renderRows(){
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('viewAll').textContent=expanded?'แสดง 6 ปัญหาล่าสุด':'ดูทั้งหมด ('+filtered.length+')';$('pagination').hidden=!expanded||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
+ scheduleDashboardFit();
 }
 
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
 function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});
  if(window.ResizeObserver){
-  let resizeFrame=0;
-  new ResizeObserver(()=>{
-   cancelAnimationFrame(resizeFrame);
-   resizeFrame=requestAnimationFrame(()=>renderCharts(selectedGlobalCounts()));
-  }).observe($('plot'));
- }else window.addEventListener('resize',()=>renderCharts(selectedGlobalCounts()));
+  const observer=new ResizeObserver(scheduleDashboardFit);
+  observer.observe(document.querySelector('main.main'));
+  observer.observe($('plot'));
+ }
+ window.addEventListener('resize',scheduleDashboardFit);
+ if(document.fonts?.ready)document.fonts.ready.then(scheduleDashboardFit);
+ scheduleDashboardFit();
  load()}
 // The same permission-checked RPC used by the detail page supplies assignment statuses.
 // Deliberately fail the Dashboard load if any assignment detail fails; never show false zeros.
