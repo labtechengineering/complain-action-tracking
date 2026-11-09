@@ -300,5 +300,64 @@ html[data-theme="soft"] .bar-part-count.is-visible{display:block;position:absolu
 html[data-theme="soft"] .bar-item:has(.bar-part-count.is-visible) .bar-stack{overflow:visible}
 html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px);transform:translateY(-50%);background:#fff;border:1px solid #b7cbe0;border-radius:4px;padding:1px 4px;font-size:11px;z-index:2;box-shadow:0 2px 4px #1c3b571a}
 
-/* Consistent outside counts, only on the selected department bar. */
-html[data-theme="soft"] .bar-part-count.is-visible{left:calc(100% + 5px);transform:translateY(-50%);background:#fff;border:1px solid #b7cbe0;border-radius:4px;padding:1px 4px;font-size:11px;z-index:2;box-shadow:0 2px 4px #1c3b571a;text-shadow:none}
+/* Dashboard: compact computer/tablet layout; phone layout stays as before.
+   Keep document scrolling available for View All, enlarged text and long notices. */
+@media (min-width:768px) and (min-height:600px) {
+ html[data-theme="soft"] .dashboard-compact .main{padding:10px 16px 12px!important;max-width:1600px}
+ html[data-theme="soft"] .dashboard-compact header{margin:0 0 6px;gap:4px 12px}
+ html[data-theme="soft"] .dashboard-compact header h1{font-size:20px;line-height:1.4}
+ html[data-theme="soft"] .dashboard-compact .welcome{font-size:12px!important;padding:3px 8px!important;line-height:1.5}
+ html[data-theme="soft"] .dashboard-compact .controls{margin:0 0 6px!important;padding:6px 8px!important;gap:5px 8px;border-radius:11px}
+ html[data-theme="soft"] .dashboard-compact .controls :is(input,select,button){min-height:32px;padding:4px 8px!important;font-size:13px;line-height:1.5}
+ html[data-theme="soft"] .dashboard-compact .controls label{font-size:12px}
+ html[data-theme="soft"] .dashboard-compact .controls #dashSearch{min-width:140px}
+ html[data-theme="soft"] .dashboard-compact #period{margin:2px 0;font-size:12px}
+ html[data-theme="soft"] .dashboard-compact .cards{margin:6px 0!important;gap:8px!important;grid-template-columns:repeat(4,minmax(0,1fr))}
+ html[data-theme="soft"] .dashboard-compact .stat{min-height:66px!important;padding:7px 12px!important;border-radius:12px}
+ html[data-theme="soft"] .dashboard-compact .stat>span:not(.theme-stat-icon){font-size:13px;line-height:1.4;padding-right:24px}
+ html[data-theme="soft"] .dashboard-compact .stat strong{font-size:27px!important;line-height:1.15;margin-top:3px!important}
+ html[data-theme="soft"] .dashboard-compact .theme-stat-icon{width:27px;height:27px;right:10px;top:9px;border-radius:8px}
+ html[data-theme="soft"] .dashboard-compact .charts{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px!important;align-items:stretch}
+ html[data-theme="soft"] .dashboard-compact .charts>.panel{height:clamp(152px,calc(100dvh - 590px),215px);display:flex;flex-direction:column;min-height:0}
+ html[data-theme="soft"] .dashboard-compact .panel{padding:8px 10px!important;border-radius:12px!important}
+ html[data-theme="soft"] .dashboard-compact .panel h2{font-size:16px;line-height:1.4}
+ html[data-theme="soft"] .dashboard-compact .legend{padding-top:2px!important;gap:2px 6px;flex:none}
+ html[data-theme="soft"] .dashboard-compact .legend-action{font-size:12px;line-height:1.3;padding:2px 3px}
+ html[data-theme="soft"] .dashboard-compact .bargraph{flex:1;min-height:0;height:auto!important;margin-top:4px!important}
+ html[data-theme="soft"] .dashboard-compact .axis{padding-bottom:27px;font-size:11px;flex-basis:26px}
+ html[data-theme="soft"] .dashboard-compact .bar-label{height:26px;flex-shrink:0;font-size:12px;line-height:1.2;padding-top:3px}
+ html[data-theme="soft"] .dashboard-compact .bar-total{height:17px;flex-shrink:0;font-size:12px;line-height:1.3}
+ html[data-theme="soft"] .dashboard-compact .bar-item{min-width:45px}
+ html[data-theme="soft"] .dashboard-compact .donutpanel .donut-layout{flex:1;min-height:0!important;gap:8px;margin-top:0;flex-wrap:nowrap}
+ html[data-theme="soft"] .dashboard-compact .donut-wrap{flex:0 0 clamp(100px,calc(100dvh - 630px),150px)}
+ html[data-theme="soft"] .dashboard-compact .donut{width:clamp(100px,calc(100dvh - 630px),150px);height:clamp(100px,calc(100dvh - 630px),150px)}
+ html[data-theme="soft"] .dashboard-compact .donut-center{width:64%;height:64%;padding:4px}
+ html[data-theme="soft"] .dashboard-compact .donut-center strong{font-size:26px;line-height:1.1}
+ html[data-theme="soft"] .dashboard-compact .donut-center :is(small,.donut-title){font-size:10px;line-height:1.2}
+ html[data-theme="soft"] .dashboard-compact .donut-legend{min-width:0;flex:1}
+ html[data-theme="soft"] .dashboard-compact .legend-row{padding:4px 0;gap:5px;font-size:12px;line-height:1.4}
+ html[data-theme="soft"] .dashboard-compact .legend-values{white-space:nowrap}
+ html[data-theme="soft"] .dashboard-compact .listpanel{margin-top:7px!important}
+ html[data-theme="soft"] .dashboard-compact .listhead{margin-bottom:5px!important;gap:6px}
+ html[data-theme="soft"] .dashboard-compact .listhead button{padding:4px 9px;font-size:12px;line-height:1.5}
+ html[data-theme="soft"] .dashboard-compact .list-columns{padding-top:5px!important;padding-bottom:5px!important;font-size:12px;line-height:1.5}
+ html[data-theme="soft"] .dashboard-compact .listpanel .job-row{min-height:36px!important;padding-top:4px!important;padding-bottom:4px!important;font-size:13px;line-height:1.4}
+ html[data-theme="soft"] .dashboard-compact .job-row .route{font-size:12px}
+ html[data-theme="soft"] .dashboard-compact .read-state{width:24px;height:24px}
+ html[data-theme="soft"] .dashboard-compact .pill{padding:3px 6px;font-size:11px;line-height:1.35}
+ html[data-theme="soft"] .dashboard-compact .workflow-notice{font-size:11px;line-height:1.3;margin-top:2px}
+ html[data-theme="soft"] .dashboard-compact .pagination{margin-top:5px}
+ html[data-theme="soft"] .dashboard-compact #feedback{margin:3px 0;font-size:12px}
+ html[data-theme="soft"] .dashboard-compact #feedback:empty{display:none}
+}
+@media (min-width:768px) and (max-width:1100px) and (min-height:600px) {
+ html[data-theme="soft"] .dashboard-compact .main{padding-left:10px!important;padding-right:10px!important}
+ html[data-theme="soft"] .dashboard-compact header h1{font-size:18px}
+ html[data-theme="soft"] .dashboard-compact .stat{padding-left:9px!important;padding-right:9px!important}
+ html[data-theme="soft"] .dashboard-compact .stat>span:not(.theme-stat-icon){font-size:12px;padding-right:0}
+ html[data-theme="soft"] .dashboard-compact .theme-stat-icon{display:none!important}
+ html[data-theme="soft"] .dashboard-compact .charts{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+ html[data-theme="soft"] .dashboard-compact .donut-wrap{flex-basis:110px}
+ html[data-theme="soft"] .dashboard-compact .donut{width:110px;height:110px}
+ html[data-theme="soft"] .dashboard-compact .legend-row{font-size:11px}
+}
