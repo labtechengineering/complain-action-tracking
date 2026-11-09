@@ -1,0 +1,145 @@
+/* Job detail/response only. Keep desktop, intake forms and PDF layouts unchanged. */
+@media screen and (max-width:680px) {
+  #captureArea.page {
+    padding:14px 12px 80px!important;
+    min-width:0;
+  }
+  #captureArea :is(#details,#jobTracker,#jobHistory).sheet {
+    padding:14px!important;
+    margin:12px 0!important;
+    border-radius:12px!important;
+  }
+  #captureArea #allIssues.sheet {
+    padding:0!important;
+    margin:18px 0!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #captureArea #allIssueCards {
+    border:0!important;
+    border-radius:0!important;
+    overflow:visible;
+  }
+  #captureArea .issue-list-columns {
+    padding:8px 10px;
+    border-radius:8px;
+  }
+  #captureArea .issue-disclosure {
+    margin:10px 0!important;
+    border-radius:12px!important;
+    box-shadow:none!important;
+  }
+  #captureArea .issue-disclosure>summary {
+    padding:12px 10px!important;
+    min-height:56px;
+  }
+  #captureArea .issue-disclosure-body {
+    padding:10px!important;
+    background:#fff!important;
+  }
+  #captureArea .expanded-issue-description {
+    margin-bottom:14px;
+  }
+  #captureArea .issue-operation-group {
+    padding:0!important;
+    margin:14px 0 0!important;
+    border:0!important;
+    border-radius:0!important;
+    box-shadow:none!important;
+    background:transparent!important;
+  }
+  #captureArea .operation-department-heading {
+    padding:4px 0 10px;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  #captureArea .issue-operation-group .department-panel {
+    padding:10px 0 0!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    box-shadow:none!important;
+    background:transparent!important;
+    min-width:0;
+  }
+  /* Keep the instruction message; remove the additional focus frame around the form. */
+  #captureArea :is(.workflow-focus,.issue-dept-highlight) {
+    outline:none!important;
+    outline-offset:0!important;
+  }
+  #captureArea .workflow-focus-hint {
+    margin:0 0 12px;
+    padding:9px 10px;
+    font-size:14px;
+    line-height:1.6;
+  }
+  #captureArea .received-issues {
+    margin:8px 0 14px;
+    padding:0!important;
+    border:0!important;
+    border-bottom:1px solid #e2e8f0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #captureArea .received-issues>summary {
+    padding:10px 0!important;
+    line-height:1.6;
+  }
+  #captureArea .source-issue-holder .issue-card {
+    padding:8px 0!important;
+    margin:8px 0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  #captureArea .department-panel :is(.row,.field) {
+    min-width:0;
+  }
+  #captureArea .department-panel .row>* {
+    flex:1 1 100%;
+    min-width:0;
+    max-width:100%;
+  }
+  #captureArea .department-panel .field {
+    margin:14px 0;
+  }
+  #captureArea .department-panel :is(input,textarea,select) {
+    box-sizing:border-box;
+    width:100%;
+    min-width:0;
+    min-inline-size:0;
+    max-width:100%;
+    font-size:16px!important;
+    line-height:1.5;
+    padding:10px!important;
+  }
+  #captureArea .department-panel input[type=date] {
+    display:block;
+    min-height:44px;
+  }
+  #captureArea .department-panel textarea {
+    min-height:96px;
+    resize:vertical;
+  }
+  #captureArea .department-panel :is(h3,p,label) {
+    overflow-wrap:anywhere;
+  }
+  #captureArea .response-prior-round {
+    padding:10px!important;
+    margin:10px 0!important;
+    border-radius:8px!important;
+  }
+  #captureArea .department-action-bar {
+    padding:10px 0 0!important;
+    margin:10px 0 0!important;
+    gap:8px;
+  }
+  #captureArea .department-action-bar button {
+    min-height:44px;
+    flex:1 1 120px;
+    margin:0;
+  }
+}
