@@ -1,0 +1,5 @@
+/* Decorative dashboard icons only; no network or workflow mutations. */
+(()=>{'use strict';function mount(){const paths={all:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',IN_PROGRESS:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',WAITING_REVIEW:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 14l3 3 5-6"/>',CLOSED:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'};for(const card of document.querySelectorAll('.stat[data-status]')){if(card.querySelector('.theme-stat-icon'))continue;const icon=document.createElement('span');icon.className='theme-stat-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(paths[card.dataset.status]||paths.all)+'</svg>';card.append(icon);}}
+
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
