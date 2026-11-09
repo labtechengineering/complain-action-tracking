@@ -302,7 +302,7 @@ html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px
 
 /* Balanced dashboard: readable text, six rows, charts use remaining screen height. */
 @media (min-width:768px) and (min-height:600px) {
- html[data-theme="soft"] .dashboard-compact .main{max-width:1680px;padding:16px 24px 12px!important}
+ html[data-theme="soft"] .dashboard-compact .main{max-width:1480px;padding:16px 32px 12px!important}
  html[data-theme="soft"] .dashboard-compact header{margin:0 0 8px;gap:6px 16px}
  html[data-theme="soft"] .dashboard-compact header h1{font-size:24px;line-height:1.3;letter-spacing:-.3px}
  html[data-theme="soft"] .dashboard-compact .welcome{font-size:13px!important;padding:5px 10px!important;line-height:1.5}
@@ -357,7 +357,7 @@ html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px
 /* Short laptop windows and tablets retain a readable, denser composition. */
 @media (min-width:768px) and (min-height:600px) and (max-height:799px),
        (min-width:768px) and (max-width:1100px) and (min-height:600px) {
- html[data-theme="soft"] .dashboard-compact .main{padding:10px 14px 10px!important}
+ html[data-theme="soft"] .dashboard-compact .main{padding:10px 32px 10px!important}
  html[data-theme="soft"] .dashboard-compact header{margin-bottom:6px;gap:3px 10px}
  html[data-theme="soft"] .dashboard-compact header h1{font-size:20px}
  html[data-theme="soft"] .dashboard-compact .welcome{font-size:12px!important;padding:3px 8px!important}
@@ -381,4 +381,9 @@ html[data-theme="soft"] .bar-part-count.is-visible.is-short{left:calc(100% + 5px
  html[data-theme="soft"] .dashboard-compact .listpanel .job-row{min-height:36px!important;padding-top:4px!important;padding-bottom:4px!important;font-size:13px}
  html[data-theme="soft"] .dashboard-compact .list-columns{padding-top:5px!important;padding-bottom:5px!important;font-size:12px}
  html[data-theme="soft"] .dashboard-compact .workflow-notice{font-size:11px;margin-top:2px}
+}
+
+/* Match the other pages' tablet gutter at the shared mobile-menu breakpoint. */
+@media (min-width:768px) and (max-width:800px) and (min-height:600px) {
+ html[data-theme="soft"] .dashboard-compact .main{padding-left:17px!important;padding-right:17px!important}
 }
