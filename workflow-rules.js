@@ -25,18 +25,19 @@ function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const owner=j.is_requester===true||j.isRequester===true||!!p.user_id&&String(j.created_by??j.createdBy??'')===String(p.user_id);
  const s=state(a),unrelated=!!value(a,'unrelated_requested_at','unrelatedRequestedAt');
  const canEdit=active&&own&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
+ const canReopenResponse=active&&own&&responsible&&!unrelated&&!legacyLocked&&((s==='IN_PROGRESS'&&requested(a)&&!approved(a))||s==='WAITING_REVIEW');
  const canHeadReview=role==='department_admin'&&own&&s==='IN_PROGRESS'&&requested(a)&&!approved(a)&&!unrelated;
  const canFinalReview=((role==='department_admin'&&origin)||(system&&norm(j.from_department??j.fromDepartment)==='system'))&&s==='WAITING_REVIEW'&&approved(a);
  let rollbackTarget=system?({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[s]||null:null;
- if(rollbackTarget==='OPEN'&&(hasResponseFiles||requested(a)||approved(a)||['receiver_problem_detail','problem_analysis','corrective_action'].some(k=>String(a[k]||'').trim())))rollbackTarget=null;
+ if(rollbackTarget==='OPEN'&&(hasResponseFiles||requested(a)||approved(a)||['receiver_problem_detail','problem_analysis','corrective_action','preventive_action'].some(k=>String(a[k]||'').trim())))rollbackTarget=null;
  return {own,origin,owner,system,responsible,
  canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated&&(!system||!value(a,'accepted_at','acceptedAt')),
- canEdit,canRequestApproval:canEdit&&role==='user',canHeadSend:canEdit&&role==='department_admin'&&own,
+ canEdit,canReopenResponse,canRequestApproval:canEdit&&role==='user',canHeadSend:canEdit&&role==='department_admin'&&own,
  canApprove:canHeadReview,canFinalReview,
  canRequestUnrelated:own&&s==='OPEN'&&!a.accepted_at&&!a.acceptedAt&&!a.responsible_user&&!a.responsibleUser&&!unrelated,
  canResolveUnrelated:active&&(system||role==='department_admin'&&origin)&&unrelated&&['OPEN','IN_PROGRESS'].includes(s),rollbackTarget};
 }
-function allowed(action,p,j,a,options){const q=permissions(p,j,a,options);return ({ACCEPT:q.canAccept,SAVE_DRAFT:q.canEdit,REQUEST_APPROVAL:q.canRequestApproval,HEAD_SEND:q.canHeadSend,APPROVE:q.canApprove,RETURN:q.canApprove,REQUESTER_PASS:q.canFinalReview,REQUESTER_FAIL:q.canFinalReview,UNRELATED_REQUEST:q.canRequestUnrelated,UNRELATED_CONFIRM:q.canResolveUnrelated,UNRELATED_REJECT:q.canResolveUnrelated})[action]===true;}
+function allowed(action,p,j,a,options){const q=permissions(p,j,a,options);return ({ACCEPT:q.canAccept,SAVE_DRAFT:q.canEdit,REOPEN_RESPONSE:q.canReopenResponse,REQUEST_APPROVAL:q.canRequestApproval,HEAD_SEND:q.canHeadSend,APPROVE:q.canApprove,RETURN:q.canApprove,REQUESTER_PASS:q.canFinalReview,REQUESTER_FAIL:q.canFinalReview,UNRELATED_REQUEST:q.canRequestUnrelated,UNRELATED_CONFIRM:q.canResolveUnrelated,UNRELATED_REJECT:q.canResolveUnrelated})[action]===true;}
 function notices(p,j,assignments){
  const notices=new Map(),add=(code,text,action=false)=>notices.set(code,{code,text,action});
  for(const a of visibleAssignments(p,j,assignments)){

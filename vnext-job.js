@@ -1,5 +1,15 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
+function responseStatus(a,canReopen){
+ const state=String(a.status||'').toUpperCase();let title;
+ if(state==='CLOSED')title='ผู้แจ้งตรวจรับผ่านแล้ว — ปิดงาน';
+ else if(state==='WAITING_REVIEW')title='ส่งงานแล้ว — รอฝ่ายผู้แจ้งตรวจรับ';
+ else if(state==='IN_PROGRESS'&&a.approval_requested_at)title='ส่งให้หัวหน้าตรวจสอบแล้ว — รอหัวหน้าอนุมัติ';
+ else if(state==='IN_PROGRESS')title='กำลังดำเนินการ — ยังไม่ได้ส่งตรวจรับ';
+ else title=label(a.status);
+ const approved=a.approved_at?'<p class="response-status-meta">หัวหน้าแผนกรับเรื่องอนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH'))+'</p>':'';
+ return '<section class="response-status-box" role="status"><h3>สถานะการส่งงาน</h3><p class="response-status-title">'+esc(title)+'</p>'+approved+(canReopen?'<p class="response-status-meta">ยังแก้ไขได้ก่อนตรวจรับ กด “แก้ไขรายละเอียด” เพื่อกลับเป็นแบบร่าง และส่งตรวจใหม่หลังแก้ไข</p>':'')+'</section>';
+}
 async function loadCategoryNames(){const {data,error}=await QA.client.from('qa_settings').select('code,name').eq('setting_type','CATEGORY').range(0,999);if(error)throw error;categoryNames=new Map((data||[]).map(x=>[String(x.code),String(x.name||'')]));}
 function categoryName(code,other=''){const key=String(code||'');return (categoryNames.get(key)||'ไม่พบชื่อประเภทปัญหา')+(String(other).trim()?': '+String(other).trim():'');}
 const setNote=(s,bad=false)=>{$('feedback').textContent=s;$('feedback').style.color=bad?'#b91c1c':'#166534';};
@@ -270,20 +280,21 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  ${systemAcceptHtml}
  ${showResponse?(hideEmptyRework?`${earlier}${oldDataNotice}<p class="requester-return-result" role="status"><strong>ตรวจสอบไม่ผ่าน — ส่งกลับแก้ไข</strong><span>${esc(rejectedReason||'รอแผนกดำเนินการแก้ไข')}</span></p><div class="no-print actions"></div>`:`${earlier}${oldDataNotice}<h3>${priorRounds.length?'รายละเอียดการแก้ไขครั้งที่ '+roundNumber:'รายละเอียดการดำเนินการ'}</h3>${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
  <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!canEditCurrent?'disabled':''}></label></div>
- <label class="field">รายละเอียดปัญหา/ข้อบกพร่อง<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
- <label class="field">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
- <label class="field">การแก้ปัญหา<textarea class="fix" ${!canEditCurrent?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
- <label class="field">การป้องกัน<textarea class="prevent" ${!canEditCurrent?'disabled':''}>${esc(a.preventive_action||'')}</textarea></label>
- <h3>ไฟล์แนบฝ่ายรับเรื่อง</h3><div class="current-response-media">${responseMedia}</div>
+ <div class="response-fields-grid"><label class="field response-field-card" data-field-step="1">รายละเอียดปัญหา/ข้อบกพร่อง<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
+ <label class="field response-field-card" data-field-step="2">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
+ <label class="field response-field-card" data-field-step="3">การแก้ปัญหา<textarea class="fix" ${!canEditCurrent?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
+ <label class="field response-field-card" data-field-step="4">การป้องกัน<textarea class="prevent" ${!canEditCurrent?'disabled':''}>${esc(a.preventive_action||'')}</textarea></label></div>
+ ${responseMedia?'<h3>ไฟล์แนบฝ่ายรับเรื่อง</h3>':''}<div class="current-response-media" ${responseMedia?'':'hidden'}>${responseMedia}</div>
  
  ${canEditCurrent?'<div class="response-picker no-print"></div><p class="response-draft-state no-print" role="status" aria-live="polite"></p>':''}
  <div class="no-print actions"></div>
- <h3>การตรวจสอบและอนุมัติ</h3><p>${pendingHeadReview?'<strong class="head-review-alert">⏳ รอหัวหน้าแผนกรับเรื่องอนุมัติ</strong>':a.approved_at?'อนุมัติเมื่อ '+esc(new Date(a.approved_at).toLocaleString('th-TH')):esc(label(a.status))}</p>`) : ''}${!showResponse?'<p class="operation-waiting">รอการรับเรื่อง/ดำเนินงาน</p><div class="no-print actions"></div>':''}`;
+ ${responseStatus(a,rights.canReopenResponse)}`) : ''}${!showResponse?'<p class="operation-waiting">รอการรับเรื่อง/ดำเนินงาน</p><div class="no-print actions"></div>':''}`;
  if(a.unrelated_requested_at&&a.status!=='CANCELLED'){const note=document.createElement('p');note.className='shared-response-note';note.textContent='รอพิจารณาฝ่ายรับเรื่อง: '+(a.unrelated_reason||'แจ้งว่าไม่เกี่ยวข้อง');el.prepend(note);}
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
  if(rights.canAccept){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก (ไม่บังคับ · สูงสุด 2,000 ตัวอักษร)';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='พิมพ์ข้อความถึงแผนกผู้รับเรื่อง ข้อความจะบันทึกไว้ในรายละเอียดหลังรับงาน';area.maxLength=2000;note.append(area);actions.append(note);}btn(QA.profile?.role==='system_admin'?'รับงานแทนแผนก':'รับงาน','ACCEPT');}
  if(canEditCurrent){btn('บันทึกแบบร่าง','SAVE_DRAFT');if(rights.canHeadSend)btn('ส่งงาน','HEAD_SEND');if(rights.canRequestApproval)btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
+ if(rights.canReopenResponse)btn('แก้ไขรายละเอียด','REOPEN_RESPONSE');
  if(rights.canApprove){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
  if(isFinalReviewer){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
  if(rights.canRequestUnrelated)btn('แจ้งไม่เกี่ยวข้องกับแผนก','UNRELATED_REQUEST','secondary');
@@ -383,7 +394,7 @@ function organizeDetailPanels(issueSheet,issueHost){
 }
 async function renderHistory(result){
  const box=$('historyRows');box.replaceChildren();try{if(result.status==='rejected')throw result.reason;const events=result.value;
- const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',HEAD_SEND:'หัวหน้าแผนกส่งงานโดยตรง',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
+ const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REOPEN_RESPONSE:'เปิดแก้ไขก่อนตรวจรับ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',HEAD_SEND:'หัวหน้าแผนกส่งงานโดยตรง',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
  for(const e of events||[]){const div=document.createElement('div');div.className='history-row';div.textContent=new Date(e.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})+' · '+(e.department_code||'')+' · '+(names[e.action]||e.action);box.append(div)}
  if(!events?.length)box.textContent='ยังไม่มีประวัติการดำเนินงาน';
  }catch(e){box.textContent='ไม่สามารถโหลดประวัติ: '+e.message}
@@ -458,16 +469,20 @@ async function act(a,action,el){
  if(pressed)pressed.textContent='กำลังบันทึก...';
  try{setNote('กำลังบันทึก...');let expected=a.version;let result;
  if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){
+   if(!Object.prototype.hasOwnProperty.call(a,'preventive_action'))throw new Error('ยังไม่ได้อัปเดตส่วนบันทึกการป้องกัน กรุณารัน SQL ในชุดอัปเดตนี้ก่อน ข้อความที่กรอกยังคงอยู่');
    const saved=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:expected,p_data:data});
    expected=Number(saved.version);if(!Number.isInteger(expected)||expected<1)throw new Error('INVALID_SAVED_VERSION');a.version=expected;
    const draft=responseDrafts.get(el.dataset.queueKey);if(draft)draft.version=expected;
    const state=el.querySelector('.response-draft-state');if(state){state.textContent='บันทึกข้อความแบบร่างแล้ว กำลังตรวจไฟล์แนบ — ยังไม่ได้ส่ง';state.dataset.state='draft';}
+   const check=await rpc('qa_vnext_job_detail',{p_job_id:jobId});
+   const stored=(check.assignments||[]).find(row=>String(row.assignment_id)===String(a.assignment_id));
+   if(!stored||!Object.prototype.hasOwnProperty.call(stored,'preventive_action')||String(stored.preventive_action??'')!==String(data.preventive_action??'').replace(/^ +| +(?![\s\S])/g,''))throw new Error('ตรวจสอบการบันทึกการป้องกันไม่สำเร็จ ยังไม่ได้ส่งงาน ข้อความที่กรอกยังคงอยู่ กรุณาตรวจ SQL แล้วกดบันทึกอีกครั้ง');
    await uploadResponse(a.assignment_id,responseQueues.get(el.dataset.queueKey)||[]);
    if(action==='SAVE_DRAFT')result=saved;
  }
  if(action!=='SAVE_DRAFT')result=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});
  if(el.dataset.queueKey){responseDrafts.delete(el.dataset.queueKey);responseQueues.delete(el.dataset.queueKey);}
- setNote(action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render({assignmentId:a.assignment_id,action});
+ setNote(action==='REOPEN_RESPONSE'?'เปิดแก้ไขแล้ว — แก้ข้อมูลและส่งตรวจใหม่':action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render({assignmentId:a.assignment_id,action});
  }catch(e){
   if(String(e.message||e).includes('VERSION_CONFLICT')){setNote('ข้อมูลใบงานถูกอัปเดตระหว่างเปิดหน้านี้ กำลังโหลดข้อมูลล่าสุด กรุณาตรวจสอบก่อนกดส่งงานอีกครั้ง',true);await render({assignmentId:a.assignment_id});}
   else{const state=el.querySelector('.response-draft-state');if(state&&['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){state.textContent='บันทึก/ส่งงานยังไม่ครบ — ตรวจข้อความแจ้งข้อผิดพลาดแล้วกดอีกครั้ง ยังไม่ได้ส่ง';state.dataset.state='unsaved';}setNote('ไม่สามารถบันทึกได้: '+e.message,true);}

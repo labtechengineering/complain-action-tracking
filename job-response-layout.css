@@ -1,0 +1,13 @@
+/* Scope the layout to the response panel; retain toolbar and source issue layout. */
+#captureArea .department-panel .response-fields-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+#captureArea .department-panel .response-field-card{display:flex;flex-direction:column;gap:10px;min-width:0;margin:0!important;padding:16px!important;border:1px solid #dbe5f0;border-radius:12px;background:#f8fbff;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+#captureArea .department-panel .response-field-card::before{content:"0" attr(data-field-step);align-self:flex-start;background:#e6eef8;color:#355577;border-radius:6px;padding:2px 8px;font-size:12px;line-height:1.5}
+#captureArea .department-panel .response-field-card textarea{min-height:120px;height:auto;max-height:none;margin:0;font-weight:400;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}
+#captureArea .department-panel .response-field-card .read-text{flex:1;white-space:pre-wrap!important;overflow-wrap:anywhere;word-break:normal;max-height:none;overflow:visible;margin:0;padding:0!important;border:0;background:transparent;font-weight:400;line-height:1.85}
+#captureArea .department-panel .response-status-box{margin:18px 0 0;padding:14px 16px;border:1px solid #c8d9eb;border-left:4px solid #547ba5;border-radius:10px;background:#f0f6fc}
+#captureArea .response-status-box h3{margin:0 0 8px;font-size:14px}
+#captureArea .response-status-title{font-weight:700;margin:0;line-height:1.7}
+#captureArea .response-status-meta{font-size:13px;line-height:1.7;margin:8px 0 0;color:#475569}
+#captureArea .current-response-media[hidden]{display:none!important}
+@media(max-width:760px){#captureArea .department-panel .response-fields-grid{grid-template-columns:minmax(0,1fr);gap:10px}#captureArea .department-panel .response-field-card{padding:12px!important}}
+@media print{#captureArea .department-panel .response-field-card,#captureArea .response-status-box{break-inside:avoid}}
