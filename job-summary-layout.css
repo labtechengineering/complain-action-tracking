@@ -1,0 +1,21 @@
+/* Approved compact header with always-visible flow and synchronized department filters. */
+#captureArea [data-department-filtered="true"]{display:none!important}
+#captureArea #departmentChips[hidden],#captureArea #trackerScope[hidden]{display:none!important}
+#captureArea #jobTracker.compact-record{padding:20px 24px!important}
+#jobTracker .record-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+#jobTracker .record-heading h2{margin:0;font-size:25px;line-height:1.35;letter-spacing:-.35px}
+#jobTracker .record-state{padding:7px 12px;border-radius:999px;background:#e9f2ff;border:1px solid #d7e7fa;color:#24588e;font-size:13px;font-weight:600}
+#jobTracker .record-state::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#397fc3;margin-right:7px;vertical-align:middle}
+#jobTracker .record-route{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:13px;color:#526680}
+#jobTracker #departmentChips{margin:14px 0 0;gap:7px}
+#jobTracker #departmentChips button{margin:0;padding:6px 11px;font-size:12px;line-height:1.5;border-radius:7px;min-height:34px}
+#jobTracker .record-flow{margin:18px 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0}
+#jobTracker .record-flow .track-stage{min-width:0;display:flex;flex-direction:column;align-items:center;gap:7px;padding:0;font-size:12px;line-height:1.5}
+#captureArea #jobTracker .record-flow .track-node{display:grid;place-items:center;width:32px!important;height:32px!important;min-width:0;font-size:12px!important;margin:0;border-width:1px}
+#captureArea #jobTracker .record-flow::before,#captureArea #jobTracker .record-flow::after{top:15px!important;height:3px}
+#jobTracker #details{margin:0;padding:0;border:0;background:transparent;box-shadow:none}
+#jobTracker .record-facts{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px;padding:14px 0;margin:0;border-top:1px solid #e5ecf3;border-bottom:1px solid #e5ecf3}
+#jobTracker .record-facts>div{min-width:0}#jobTracker .record-facts dt{font-size:12px;color:#728298;margin:0 0 4px}#jobTracker .record-facts dd{font-size:15px;font-weight:600;color:#243d59;margin:0;overflow-wrap:anywhere}
+#jobTracker .record-created{font-size:12px;color:#8090a3;text-align:right;margin:10px 0 0;line-height:1.7}
+#jobTracker .record-created:empty{display:none}#jobTracker .record-remark{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin:12px 0 0}
+@media(max-width:680px){#captureArea #jobTracker.compact-record{padding:16px!important}#jobTracker .record-heading h2{font-size:21px}#jobTracker .record-state{font-size:12px;padding:5px 10px}#jobTracker .record-flow .track-stage{font-size:11px}#jobTracker .record-facts{grid-template-columns:1fr 1fr;gap:12px}#jobTracker .record-facts>div:first-child{grid-column:1/-1}#jobTracker .record-facts dd{font-size:14px}#jobTracker .record-created{text-align:left}}
