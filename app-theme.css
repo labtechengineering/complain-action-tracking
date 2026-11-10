@@ -385,5 +385,6 @@ html[data-theme="soft"] .bar-item:has(.bar-part-count.is-visible) .bar-stack{ove
  html[data-theme="soft"] .dashboard-compact .main{padding-left:17px!important;padding-right:17px!important}
 }
 
-/* Reserve room for the selected colour count beside the last bar as well. */
-html[data-theme="soft"] .dashboard-compact .plot{padding-right:36px}
+/* Hide the numeric scale and balance the plotting area, retaining room for side counts. */
+html[data-theme="soft"] .dashboard-compact .barpanel #axis{display:none}
+html[data-theme="soft"] .dashboard-compact .plot{padding-left:36px;padding-right:36px}
