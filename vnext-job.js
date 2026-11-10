@@ -158,13 +158,11 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  const pendingLine=sessionStorage.getItem('qa-v49-pending-line:'+jobId);if(pendingLine){try{receiverChangeRetryButton(JSON.parse(pendingLine));}catch(_e){sessionStorage.removeItem('qa-v49-pending-line:'+jobId);}}
  const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
  $('details').innerHTML=`<dl class="record-facts"><div><dt>Serial Number</dt><dd>${esc(detail.serial_no||'-')}</dd></div><div><dt>ลูกค้า</dt><dd>${esc(detail.customer_name||'-')}</dd></div><div><dt>ประเทศ</dt><dd>${esc(detail.country||'-')}</dd></div></dl>${String(detail.requester_remark||'').trim()?'<p class="record-remark"><b>Remark:</b> '+esc(detail.requester_remark)+'</p>':''}`;
- const created=detail.created_at?new Date(detail.created_at):null;
- $('recordCreated').textContent=created&&!Number.isNaN(created.getTime())?'สร้าง '+created.toLocaleDateString('th-TH',{timeZone:'Asia/Bangkok',day:'numeric',month:'short',year:'numeric'})+' · '+created.toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'})+' น.':'';
  const list=$('assignments');list.replaceChildren();
  if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';renderTracker(detail);detailState('ready');return true;}
  // Section 2 is one permanent container. Every issue remains visible in order.
  const issueSheet=document.createElement('section');issueSheet.className='sheet issues-section';issueSheet.id='allIssues';
- issueSheet.innerHTML='<h2>2. รายละเอียดปัญหา</h2><div id="allIssueCards"></div>';
+ issueSheet.innerHTML='<h2>รายละเอียด</h2><div id="allIssueCards"></div>';
  list.append(issueSheet);
  const issueHost=issueSheet.querySelector('#allIssueCards');
  // Source of truth for issue display codes is one secured RPC, not each user's visible subset.
@@ -405,7 +403,7 @@ function renderTracker(d){
   const status=QAStatus.aggregate(assignments),current=QAStatus.stage(status),ids=new Set(assignments.map(a=>String(a.assignment_id)));
   $('jobTrackerNumber').textContent=d.car_code||d.job_id;
   $('trackerScope').textContent=selectedDepartment?'สถานะแผนก '+selectedDepartment:issueId?'สถานะปัญหาที่เลือก':'สถานะรวมของใบงาน';
-  $('trackerStatus').textContent=status==='WAITING_REVIEW'?'รอฝ่ายผู้แจ้งตรวจรับ':QAStatus.label(status);
+  $('jobTracker').setAttribute('aria-label','ข้อมูลใบงาน · '+(status==='WAITING_REVIEW'?'รอฝ่ายผู้แจ้งตรวจรับ':QAStatus.label(status)));
   const origin=d.from_department==='SYSTEM'?'System Admin':d.from_department||'-';
   $('recordOrigin').textContent=origin;$('recordReceivers').textContent=[...new Set(assignments.map(a=>a.department_code))].join(', ')||'-';
   $('jobTracker').classList.toggle('is-mixed',status==='MIXED');

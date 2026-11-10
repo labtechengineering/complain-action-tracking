@@ -19,3 +19,16 @@
 #jobTracker .record-created{font-size:12px;color:#8090a3;text-align:right;margin:10px 0 0;line-height:1.7}
 #jobTracker .record-created:empty{display:none}#jobTracker .record-remark{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;margin:12px 0 0}
 @media(max-width:680px){#captureArea #jobTracker.compact-record{padding:16px!important}#jobTracker .record-heading h2{font-size:21px}#jobTracker .record-state{font-size:12px;padding:5px 10px}#jobTracker .record-flow .track-stage{font-size:11px}#jobTracker .record-facts{grid-template-columns:1fr 1fr;gap:12px}#jobTracker .record-facts>div:first-child{grid-column:1/-1}#jobTracker .record-facts dd{font-size:14px}#jobTracker .record-created{text-align:left}}
+
+/* Final approved header: route at top right, inline facts, no creation-date footer. */
+#captureArea #jobTracker.compact-record{padding:20px 24px 18px!important}
+#jobTracker .record-heading{flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:12px}
+#jobTracker .record-heading h2{min-width:0}
+#jobTracker .record-heading .record-route{margin:0;font-size:14px;gap:9px;justify-content:flex-end;max-width:45%;min-width:0;text-align:right;overflow-wrap:anywhere}
+#jobTracker .record-flow{margin-bottom:16px}
+#jobTracker .record-facts{border-bottom:0;padding:13px 0 0;margin-bottom:0}
+#jobTracker .record-facts>div{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;min-width:0}
+#jobTracker .record-facts dt{display:inline;margin:0;font-size:13px;line-height:1.7;white-space:nowrap}
+#jobTracker .record-facts dt::after{content:" :"}
+#jobTracker .record-facts dd{display:inline;margin:0;font-size:14px;line-height:1.7;min-width:0;overflow-wrap:anywhere}
+@media(max-width:680px){#captureArea #jobTracker.compact-record{padding:16px!important}#jobTracker .record-heading .record-route{font-size:12px;gap:6px}#jobTracker .record-facts{grid-template-columns:minmax(0,1fr);padding:12px 0 0;gap:8px}#jobTracker .record-facts>div:first-child{grid-column:auto}#jobTracker .record-flow{margin-bottom:14px}}
