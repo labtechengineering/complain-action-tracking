@@ -20,3 +20,6 @@
  #captureArea .department-panel input.due[type="date"]::-webkit-date-and-time-value{min-width:0;text-align:left}
  #captureArea .department-panel input.due[type="date"]::-webkit-datetime-edit{min-width:0;padding:0}
 }
+
+/* Match the approved lean detail preview after removing the repeated issue text. */
+#captureArea .issue-disclosure-body>.issue-operations-title{margin-top:0}
