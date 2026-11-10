@@ -32,3 +32,8 @@
 #jobTracker .record-facts dt::after{content:" :"}
 #jobTracker .record-facts dd{display:inline;margin:0;font-size:14px;line-height:1.7;min-width:0;overflow-wrap:anywhere}
 @media(max-width:680px){#captureArea #jobTracker.compact-record{padding:16px!important}#jobTracker .record-heading .record-route{font-size:12px;gap:6px}#jobTracker .record-facts{grid-template-columns:minmax(0,1fr);padding:12px 0 0;gap:8px}#jobTracker .record-facts>div:first-child{grid-column:auto}#jobTracker .record-flow{margin-bottom:14px}}
+
+/* Give the workflow more vertical breathing room while keeping node/connector alignment. */
+#captureArea #jobTracker .record-flow{margin:30px 0 28px}
+#captureArea #jobTracker .record-flow .track-stage{gap:12px;line-height:1.8}
+@media(max-width:680px){#captureArea #jobTracker .record-flow{margin:26px 0 24px}#captureArea #jobTracker .record-flow .track-stage{gap:10px;line-height:1.7}}
