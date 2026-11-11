@@ -1,0 +1,22 @@
+#captureArea .request-header-editor{margin:18px 0 0;padding:16px;border:1px solid #c8d8ea;border-radius:12px;background:#f5f9ff}
+#captureArea .request-header-editor h3{margin:0 0 12px}
+#captureArea .request-header-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#captureArea .request-header-grid label{display:block;min-width:0;font-size:14px}
+#captureArea .request-header-grid :is(input,textarea){box-sizing:border-box;width:100%;min-width:0;max-width:100%;font-size:16px;margin:6px 0 0}
+#captureArea .request-header-wide{grid-column:1/-1}
+#captureArea .request-header-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#captureArea .request-department-choice{display:inline-flex;align-items:center;gap:7px;margin:7px 14px 7px 0;font-size:14px}
+#captureArea .request-department-choice input[type=checkbox]{box-sizing:border-box;width:18px!important;min-width:18px!important;max-width:18px!important;inline-size:18px!important;min-inline-size:18px!important;height:18px;margin:0!important;padding:0!important;flex:0 0 18px}
+@media(max-width:680px){#captureArea .request-header-grid{grid-template-columns:minmax(0,1fr)}#captureArea .request-header-editor{padding:12px}#captureArea .request-header-actions button{flex:1 1 120px}}
+
+#captureArea .request-header-grid select{box-sizing:border-box;width:100%;min-width:0;font-size:16px;margin-top:6px}
+#captureArea .request-issue-card{background:white;border:1px solid #d4e0ed;border-radius:12px;padding:16px;margin:18px 0}
+#captureArea .request-issue-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+#captureArea .request-issue-heading h4{margin:0;font-size:16px}
+#captureArea .request-receivers{border:0;padding:0;margin:14px 0;min-width:0}
+#captureArea .request-existing-media textarea{box-sizing:border-box;width:100%;min-width:0}
+#captureArea .request-issue-picker input{box-sizing:border-box;min-width:0;max-width:100%}
+#captureArea .request-description{min-height:100px;line-height:1.6}
+#captureArea .request-editor-status{white-space:pre-wrap;overflow-wrap:anywhere}
+#captureArea .request-other-label[hidden],#allIssues[hidden]{display:none!important}
+@media(max-width:680px){#captureArea .request-issue-card{padding:12px}#captureArea .request-issue-picker .qa-pick-controls>label{min-width:0;flex-basis:100%}}

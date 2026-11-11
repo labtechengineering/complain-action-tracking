@@ -1,5 +1,73 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
+function requestEditError(e){const text=e?.message||String(e);if(text.includes('VERSION_CONFLICT'))return 'มีคนแก้ไขข้อมูลระหว่างเปิดหน้านี้ กรุณาเปิดแก้ไขใหม่';if(text.includes('JOB_ALREADY_ACCEPTED_OR_ACTIVE'))return 'มีแผนกรับงานแล้ว แก้ข้อมูลใบแจ้งไม่ได้จนกว่า System Admin จะย้อนกลับรอรับงานครบทุกแผนก';if(text.includes('DEPARTMENT_HAS_SAVED_WORK_KEEP_ASSIGNED'))return 'แผนกนี้มีคำตอบหรือไฟล์เดิมอยู่ ต้องคงแผนกนี้ไว้เพื่อรักษาข้อมูล สามารถเพิ่มแผนกอื่นได้';if(['PGRST202','42883'].includes(String(e?.code||'')))return 'กรุณารัน SQL ชุดแก้ไขข้อมูลใบแจ้งก่อน';return text;}
+async function openRequestHeaderEditor(){
+ if($('requestHeaderEditor')){$('requestHeaderEditor').scrollIntoView({behavior:'smooth',block:'start'});return;}
+ const values=await rpc('qa_request_full_v1',{p_job_id:jobId});
+ const form=document.createElement('form');form.id='requestHeaderEditor';form.className='request-header-editor no-print';
+ form.innerHTML='<h3>แก้ไขใบแจ้ง</h3><div class="request-header-grid"><label>ประเภทงาน<select name="source_type" required><option value="PRODUCTION">PRODUCTION</option><option value="AFTERSALES">AFTERSALES</option></select></label><label>Serial Number<input name="serial_no" maxlength="500"></label><label>ลูกค้า<input name="customer_name" maxlength="200"></label><label>ประเทศ<input name="country" maxlength="120"></label><label class="request-header-wide">Remark<textarea name="requester_remark" maxlength="20000"></textarea></label></div><div class="request-issues"></div><button type="button" class="secondary request-add-issue">+ เพิ่มปัญหา</button><p class="request-editor-status" role="status"></p><div class="request-header-actions"><button type="submit">บันทึกใบแจ้ง</button><button type="button" class="secondary request-header-cancel">ยกเลิก</button></div>';
+ for(const key of ['source_type','serial_no','customer_name','country','requester_remark'])form.elements.namedItem(key).value=values[key]||'';
+ const cards=[],pickers=[],notes=[];let dirty=false,busy=false,savedResult=null;
+ const feedback=(message,bad=false)=>{const node=form.querySelector('.request-editor-status');node.textContent=message;node.style.color=bad?'#b91c1c':'#166534';};
+ const unload=e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',unload);
+ form.addEventListener('input',()=>dirty=true);form.addEventListener('change',()=>dirty=true);
+ form._dispose=()=>{pickers.forEach(p=>p.destroy());window.removeEventListener('beforeunload',unload);if($('allIssues'))$('allIssues').hidden=false;};
+ const categories=values.categories||[];
+ async function addCard(issue={}){
+  const card=document.createElement('section');card.className='request-issue-card';card.dataset.issueId=issue.issue_id||'';
+  const row={card,issue,entries:[],picker:null};cards.push(row);
+  card.innerHTML='<div class="request-issue-heading"><h4></h4>'+(!issue.issue_id?'<button type="button" class="secondary request-remove-issue">ลบปัญหาที่เพิ่ม</button>':'')+'</div><div class="request-header-grid"><label>ประเภทปัญหา<select class="request-category" required><option value="">เลือกประเภทปัญหา</option>'+categories.filter(c=>c.active!==false||c.code===issue.category_code).map(c=>'<option value="'+esc(c.code)+'">'+esc(c.name||c.code)+'</option>').join('')+'</select></label><label class="request-other-label" hidden>ระบุประเภทอื่นๆ<input class="request-other" maxlength="120"></label><label class="request-header-wide">รายละเอียดปัญหา<textarea class="request-description" required maxlength="20000"></textarea></label></div><fieldset class="request-receivers"><legend>ฝ่ายรับเรื่อง · เลือกได้หลายแผนก</legend></fieldset><div class="request-existing-media"></div><div class="request-issue-picker"></div>';
+  const renumber=()=>cards.forEach((r,n)=>r.card.querySelector('h4').textContent='ปัญหา '+(r.issue.issue_number||n+1)+(r.issue.issue_id?'':' (ใหม่)'));renumber();
+  const category=card.querySelector('.request-category'),other=card.querySelector('.request-other');category.value=issue.category_code||'';other.value=issue.category_other||'';card.querySelector('.request-description').value=issue.description||'';
+  const syncOther=()=>{const show=!!categories.find(c=>c.code===category.value)?.is_other;card.querySelector('.request-other-label').hidden=!show;other.required=show;if(!show)other.value='';};category.onchange=syncOther;syncOther();
+  const current=issue.departments||[],receivers=new Map((values.receivers||[]).filter(r=>r.enabled!==false).map(r=>[String(r.department_code||r.code),r]));for(const code of current)if(!receivers.has(code))receivers.set(code,{code,enabled:false});
+  for(const [code,r] of receivers){const checked=current.includes(code),locked=checked&&(values.protected_departments||[]).includes(code),label=document.createElement('label');label.className='request-department-choice';label.innerHTML='<input type="checkbox" value="'+esc(code)+'" '+(checked?'checked ':'')+((locked||r.enabled===false)?'disabled':'')+'>'+esc(code)+(locked?' (มีข้อมูลเดิม)':r.enabled===false?' (ปิดรับงาน)':'');card.querySelector('.request-receivers').append(label);}
+  card.querySelector('.request-remove-issue')?.addEventListener('click',()=>{if(busy)return;if(row.entries.length&&!confirm('ลบปัญหาที่เพิ่มนี้พร้อมไฟล์ที่ยังไม่ได้บันทึก?'))return;row.picker?.destroy();cards.splice(cards.indexOf(row),1);card.remove();renumber();dirty=true;});
+  form.querySelector('.request-issues').append(card);
+  const old=media.filter(m=>m.scope==='ISSUE'&&String(m.issue_id)===String(issue.issue_id));
+  if(old.length){card.querySelector('.request-existing-media').innerHTML='<b>ไฟล์เดิม</b>'+await mediaFor([issue.issue_id],null,false);for(const m of old){const label=document.createElement('label');label.textContent='หมายเหตุไฟล์ '+(old.indexOf(m)+1);const input=document.createElement('textarea');input.value=m.note||'';input.maxLength=2000;label.append(input);card.querySelector('.request-existing-media').append(label);notes.push({id:m.attachment_id,input,saved:m.note||''});}}
+  row.picker=QAMediaPicker.mount(card.querySelector('.request-issue-picker'),{entries:row.entries,existing:{images:old.filter(m=>m.kind==='IMAGE').length,videos:old.filter(m=>m.kind==='VIDEO').length},onChange:()=>dirty=true,onError:m=>feedback(m,true)});pickers.push(row.picker);
+  return row;
+ }
+ for(const issue of values.issues||[])await addCard(issue);
+ form.querySelector('.request-add-issue').onclick=async()=>{if(busy||savedResult)return;const row=await addCard();dirty=true;row.card.scrollIntoView({behavior:'smooth',block:'center'});row.card.querySelector('select').focus();};
+ form.querySelector('.request-header-cancel').onclick=()=>{if(busy)return;if(dirty&&!confirm(savedResult?'ข้อมูลใบแจ้งบันทึกแล้ว แต่ยังมีไฟล์ค้างส่ง ต้องการปิดฟอร์มหรือไม่?':'ยกเลิกข้อมูลที่แก้ไขและไฟล์ที่ยังไม่ได้บันทึก?'))return;form._dispose();form.remove();if(savedResult)void render();};
+ form.onsubmit=async event=>{event.preventDefault();if(busy)return;if(!savedResult&&!form.reportValidity())return;
+  let payload;if(!savedResult){const issues=cards.map(({card,issue})=>({issue_id:issue.issue_id||null,category_code:card.querySelector('.request-category').value,category_other:card.querySelector('.request-other').value.trim(),description:card.querySelector('.request-description').value.trim(),departments:[...card.querySelectorAll('.request-receivers input:checked')].map(n=>n.value)}));
+   if(!issues.length||issues.some(i=>!i.category_code||!i.description||!i.departments.length)){feedback('กรอกประเภท รายละเอียด และฝ่ายรับเรื่องอย่างน้อย 1 แผนกให้ครบทุกปัญหา',true);return;}
+   payload={header:Object.fromEntries(['source_type','serial_no','customer_name','country','requester_remark'].map(k=>[k,form.elements.namedItem(k).value])),issues};
+  }
+  busy=true;const button=form.querySelector('[type=submit]');button.disabled=true;form.querySelector('.request-add-issue').disabled=true;form.querySelector('.request-header-cancel').disabled=true;
+  try{
+   if(!savedResult){feedback('กำลังบันทึกใบแจ้ง...');savedResult=await rpc('qa_request_full_v1',{p_job_id:jobId,p_values:payload,p_expected_version:values.version,p_expected_snapshot:values.snapshot});
+    for(const [n,row] of cards.entries())row.issue={...row.issue,...savedResult.saved_issues[n]};queueRequestEvents(savedResult.receiver_events||[]);
+    for(const input of form.querySelectorAll('input,select,textarea,.request-remove-issue'))input.disabled=true;
+   }
+   feedback('บันทึกใบแจ้งแล้ว กำลังบันทึกไฟล์แนบ...');
+   for(const row of cards){for(const entry of row.entries)await uploadRequestEntry(row.issue.issue_number,entry);row.picker.render();}
+   for(const note of notes)if(note.input.value!==note.saved){await rpc('qa_v38_media_set_note',{p_attachment_id:note.id,p_note:note.input.value});note.saved=note.input.value;}
+   dirty=false;form._dispose();await render();setNote('บันทึกใบแจ้งและไฟล์แนบเรียบร้อย');await sendRequestLines();
+  }catch(e){feedback((savedResult?'ข้อมูลใบแจ้งบันทึกแล้ว มีไฟล์หรือหมายเหตุที่ยังไม่สำเร็จ กดบันทึกไฟล์ที่ค้างอีกครั้ง: ':'บันทึกไม่สำเร็จ: ')+requestEditError(e),true);button.textContent=savedResult?'บันทึกไฟล์ที่ค้างอีกครั้ง':'บันทึกใบแจ้ง';button.disabled=false;form.querySelector('.request-add-issue').disabled=!!savedResult;form.querySelector('.request-header-cancel').disabled=false;
+  }finally{busy=false;}
+ };
+ $('details').append(form);if($('allIssues'))$('allIssues').hidden=true;form.scrollIntoView({behavior:'smooth',block:'start'});form.elements.namedItem('source_type').focus();
+}
+async function uploadRequestEntry(issueNumber,entry){
+ const file=entry.file;QAMediaPicker.validate([file]);
+ if(!entry.attachmentId){const path=QA.profile.user_id+'/'+crypto.randomUUID()+'.'+(file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin');
+  const {error}=await QA.client.storage.from('qa-vnext-media').upload(path,file,{contentType:file.type,upsert:false});if(error)throw error;
+  try{const registered=await rpc('qa_vnext_register_attachment',{p_job_id:jobId,p_scope:'ISSUE',p_issue_number:issueNumber,p_assignment_id:null,p_kind:file.type.startsWith('image/')?'IMAGE':'VIDEO',p_path:path,p_mime_type:file.type,p_size_bytes:file.size});if(!registered?.attachment_id)throw Error('ลงทะเบียนไฟล์แนบไม่สำเร็จ');entry.attachmentId=registered.attachment_id;}
+  catch(e){try{await QA.client.storage.from('qa-vnext-media').remove([path]);}catch{}throw e;}
+ }
+ if((entry.note||'')!==entry.savedNote){if(entry.note||entry.savedNote!==undefined)await rpc('qa_v38_media_set_note',{p_attachment_id:entry.attachmentId,p_note:entry.note||''});entry.savedNote=entry.note||'';}
+}
+function queueRequestEvents(events){events=events.map(e=>({...e,new_departments:e.new_departments||e.departments||[]}));const key='qa-full-edit-lines:'+jobId;let prior=[];try{prior=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}const merged=new Map([...prior,...events].map(e=>[e.event_id,e]));sessionStorage.setItem(key,JSON.stringify([...merged.values()]));}
+function requestLineRetry(){let b=$('retryRequestLines');if(!b){b=document.createElement('button');b.id='retryRequestLines';b.type='button';b.className='secondary no-print';$('feedback').insertAdjacentElement('afterend',b);}b.textContent='ส่ง LINE ที่ค้างอีกครั้ง';b.hidden=false;b.onclick=()=>sendRequestLines();if($('retryReceiverLine'))$('retryReceiverLine').hidden=true;}
+let requestLinesBusy=false;
+async function sendRequestLines(){if(requestLinesBusy)return;requestLinesBusy=true;const key='qa-full-edit-lines:'+jobId;try{let pending=JSON.parse(sessionStorage.getItem(key)||'[]');if($('retryRequestLines'))$('retryRequestLines').hidden=true;
+ while(pending.length){const done=await notifyReceiverChange(pending[0]);if(!done){requestLineRetry();return;}pending.shift();sessionStorage.setItem(key,JSON.stringify(pending));}
+ sessionStorage.removeItem(key);
+ }finally{requestLinesBusy=false;}}
 function responseStatus(a,canReopen){
  const state=String(a.status||'').toUpperCase();let title;
  if(state==='CLOSED')title='ผู้แจ้งตรวจรับผ่านแล้ว — ปิดงาน';
@@ -69,8 +137,8 @@ async function notifyReceiverChange(ev){
   if(data?.skipped)throw new Error(data.reason||'ยังไม่ตั้งค่ากลุ่ม LINE');
   if(!data?.sent)throw new Error('LINE ไม่ยืนยันการส่ง');
   sessionStorage.removeItem('qa-v49-pending-line:'+jobId);
-  setNote(data.already_sent?'เปลี่ยนแผนกสำเร็จ และ LINE เหตุการณ์นี้ส่งไปแล้ว':'เปลี่ยนแผนกสำเร็จ และส่งภาพแจ้งแก้ไขเข้า LINE แล้ว');
- }catch(e){setNote('เปลี่ยนแผนกใน Supabase สำเร็จแล้ว แต่ LINE ยังไม่สำเร็จ: '+e.message,true);receiverChangeRetryButton(ev);}
+  setNote(data.already_sent?'เปลี่ยนแผนกสำเร็จ และ LINE เหตุการณ์นี้ส่งไปแล้ว':'เปลี่ยนแผนกสำเร็จ และส่งภาพแจ้งแก้ไขเข้า LINE แล้ว');return true;
+ }catch(e){setNote('เปลี่ยนแผนกใน Supabase สำเร็จแล้ว แต่ LINE ยังไม่สำเร็จ: '+e.message,true);receiverChangeRetryButton(ev);return false;}
 }
 
 function captureDetailFocus(){
@@ -127,7 +195,7 @@ function guideDetail(context={}){
 }
 
 function detailState(state){const host=$('captureArea');if(host){host.dataset.detailState=state;host.setAttribute('aria-busy',String(state==='loading'));}const loading=$('detailLoading');if(loading)loading.hidden=state!=='loading';$('pdfButton').disabled=state!=='ready';}
-async function render(requestedFocus={}){const focusContext={...captureDetailFocus(),...requestedFocus};detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
+async function render(requestedFocus={}){const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
  try{
  // These secured reads use the same job ID and do not depend on one another.
  // Settle every read so optional history errors cannot reject an unread promise.
@@ -154,9 +222,11 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  const paths=[...new Set(media.map(m=>m.storage_path).filter(Boolean))];
  void Promise.allSettled(paths.flatMap(path=>[getUrl(path),getUrl(path,true)]));
  if(detail.can_manage_issues||detail.assignments.some(a=>QAWorkflow.permissions(QA.profile,detail,a).canResolveUnrelated)){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
- const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.textContent='แก้ไขใบแจ้ง';editBtn.onclick=()=>{document.querySelector('.issue-disclosure')?._openIssue();document.querySelectorAll('.issue-edit-controls').forEach(x=>{x.hidden=false;for(let p=x.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});const target=document.querySelector('.issue-edit-controls, .issue-reassign');if(target)target.scrollIntoView({behavior:'smooth',block:'center'});else setNote('งานนี้ไม่อยู่ในช่วงที่สามารถแก้ไขใบแจ้งได้',true);};}
+ const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.textContent='แก้ไขใบแจ้ง';editBtn.onclick=async()=>{if(editBtn.disabled)return;editBtn.disabled=true;try{await openRequestHeaderEditor();}catch(e){setNote('เปิดแก้ไขใบแจ้งไม่ได้: '+requestEditError(e),true);}finally{editBtn.disabled=false;}};}
+
  const pendingLine=sessionStorage.getItem('qa-v49-pending-line:'+jobId);if(pendingLine){try{receiverChangeRetryButton(JSON.parse(pendingLine));}catch(_e){sessionStorage.removeItem('qa-v49-pending-line:'+jobId);}}
  const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
+ if(sessionStorage.getItem('qa-full-edit-lines:'+jobId))requestLineRetry();
  $('details').innerHTML=`<dl class="record-facts"><div><dt>Serial Number</dt><dd>${esc(detail.serial_no||'-')}</dd></div><div><dt>ลูกค้า</dt><dd>${esc(detail.customer_name||'-')}</dd></div><div><dt>ประเทศ</dt><dd>${esc(detail.country||'-')}</dd></div></dl>${String(detail.requester_remark||'').trim()?'<p class="record-remark"><b>Remark:</b> '+esc(detail.requester_remark)+'</p>':''}`;
  const list=$('assignments');list.replaceChildren();
  if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';renderTracker(detail);detailState('ready');return true;}
@@ -186,7 +256,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
    if(displayedIssues.has(uniqueKey))continue;
    displayedIssues.add(uniqueKey);
 
-   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}-${esc(a.assignment_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code,i.category_other||''))}</span></h3><p><b>รายละเอียดปัญหา :</b> ${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}${media.some(m=>m.scope==='ISSUE'&&m.issue_id===i.issue_id)?'<b>ไฟล์แนบจากผู้แจ้ง</b>':''}${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}" data-original-department="${esc(a.department_code)}"><b>เปลี่ยนฝ่ายรับเรื่องจาก ${esc(a.department_code)} (ก่อนมีผู้รับงาน)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>`<label style="display:inline-flex;gap:6px;margin:6px 14px 6px 0"><input type="radio" name="receiver-${esc(a.assignment_id)}-${esc(i.issue_id)}" value="${esc(d.code)}">${esc(d.code)}</label>`).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกเปลี่ยนแผนก</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
+   cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}-${esc(a.assignment_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code,i.category_other||''))}</span></h3><p><b>รายละเอียดปัญหา :</b> ${esc(i.description)}</p>${issueEditable?`<div class="no-print issue-edit-controls" hidden><label>แก้ไขรายละเอียดปัญหา<textarea class="issue-edit-description" data-issue-id="${esc(i.issue_id)}" maxlength="20000">${esc(i.description)}</textarea></label><button type="button" class="issue-edit-save" data-issue-id="${esc(i.issue_id)}">บันทึกการแก้ไขปัญหา</button></div>`:''}${media.some(m=>m.scope==='ISSUE'&&m.issue_id===i.issue_id)?'<b>ไฟล์แนบจากผู้แจ้ง</b>':''}${await mediaFor([i.issue_id],null,issueEditable)}${issueEditable&&receivingDepartments.length?`<div class="no-print issue-reassign" data-issue-id="${esc(i.issue_id)}"><b>ฝ่ายรับเรื่อง (เลือกได้มากกว่า 1 แผนก)</b><div class="receiver-checkboxes">${receivingDepartments.map(d=>{const relevant=detail.assignments.filter(x=>(x.issues||[]).some(issue=>String(issue.issue_id)===String(i.issue_id)));const current=relevant.some(x=>x.department_code===d.code);const protectedDept=relevant.some(x=>x.department_code===d.code&&(['receiver_problem_detail','problem_analysis','corrective_action','preventive_action','system_accept_comment','due_date'].some(key=>String(x[key]||'').trim())||media.some(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===x.assignment_id)||(completedRounds.get(String(x.assignment_id))||[]).length));return `<label class="request-department-choice"><input type="checkbox" value="${esc(d.code)}" ${current?'checked':''} ${protectedDept?'disabled':''}>${esc(d.code)}${protectedDept?' (มีข้อมูลเดิม)':''}</label>`;}).join('')}</div><button type="button" class="issue-reassign-save" data-issue-id="${esc(i.issue_id)}">บันทึกฝ่ายรับเรื่อง</button></div>`:''}${issueEditable?`<div class="no-print"><label>เพิ่มไฟล์ของปัญหา ${esc(i.issue_number)}<input class="issueFiles" data-issue-number="${esc(i.issue_number)}" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" multiple></label></div>`:''}</article>`);
   }
   deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
@@ -208,21 +278,12 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  });
  for(const button of issueSheet.querySelectorAll('.issue-reassign-save'))button.addEventListener('click',async()=>{
   const root=button.closest('.issue-reassign');
-  const selected=root.querySelector('input[type="radio"]:checked');
-  const original=root.dataset.originalDepartment;
+  const codes=[...root.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
   const issueId=button.dataset.issueId;
-  if(!selected){setNote('กรุณาเลือกฝ่ายรับเรื่องใหม่สำหรับแผนก '+original,true);return;}
-  const target=selected.value;
-  // The existing RPC updates the complete receiver set for one issue. Preserve
-  // every other department when the user changes this one department card.
-  const current=[...new Set((detail.assignments||[])
-    .filter(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId)))
-    .map(a=>String(a.department_code)))];
-  if(!current.includes(original)){setNote('ข้อมูลฝ่ายรับเรื่องเปลี่ยนไป กรุณาโหลดใบงานใหม่',true);return;}
-  if(target===original){setNote('เลือกแผนกเดิม '+original+' จึงไม่มีการเปลี่ยนแปลงและไม่ส่ง LINE');return;}
-  if(current.includes(target)){setNote('ปัญหานี้ส่งให้แผนก '+target+' อยู่แล้ว กรุณาเลือกแผนกอื่นเพื่อไม่ให้การมอบหมายซ้ำกัน',true);return;}
-  const codes=current.map(x=>x===original?target:x);
-  if(!confirm('ยืนยันเปลี่ยนฝ่ายรับเรื่องจาก '+original+' เป็น '+target+'?\nแผนกอื่นคงเดิม เลขปัญหาไม่เปลี่ยน และระบบจะแจ้ง LINE กลุ่ม '+String(detail.source_type||'')+' หลังบันทึก'))return;
+  if(!codes.length){setNote('กรุณาเลือกฝ่ายรับเรื่องอย่างน้อย 1 แผนก',true);return;}
+  const current=[...new Set(detail.assignments.filter(a=>(a.issues||[]).some(i=>String(i.issue_id)===String(issueId))).map(a=>a.department_code))];
+  if(JSON.stringify([...current].sort())===JSON.stringify([...codes].sort())){setNote('ฝ่ายรับเรื่องเหมือนเดิม จึงไม่เปลี่ยนแปลงหรือส่ง LINE ซ้ำ');return;}
+  if(!confirm('ยืนยันฝ่ายรับเรื่องของปัญหานี้เป็น '+codes.join(', ')+'?\nเลขปัญหาเดิมยังคงอยู่ และไม่เปลี่ยนปัญหาข้ออื่น'))return;
   button.disabled=true;try{const result=await rpc('qa_v49_change_issue_departments',{p_issue_id:button.dataset.issueId,p_departments:codes});
    if(!result.changed){await render();setNote('ไม่ได้เปลี่ยนแผนก (รายการที่เลือกเหมือนเดิม) จึงไม่ส่ง LINE ซ้ำ');}
    else if(result.event_id){
@@ -231,7 +292,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
     await render();await notifyReceiverChange(event);
    }else{setNote('บันทึกแล้ว แต่ไม่มีเลขเหตุการณ์แจ้งเตือน กรุณาตรวจ SQL V49.7',true);}
   }
-   catch(e){setNote('เปลี่ยนแผนกไม่สำเร็จ: '+e.message,true);button.disabled=false;}
+   catch(e){setNote('เปลี่ยนแผนกไม่สำเร็จ: '+requestEditError(e),true);button.disabled=false;}
  });
  // Keep each response beside its own assignment issues; never guess a per-issue mapping.
  for(const a of detail.assignments){
@@ -297,7 +358,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
   const confirmButton=document.createElement('button');confirmButton.type='button';confirmButton.textContent='ยืนยัน';confirmButton.onclick=()=>{const choice=routing.querySelector('input[type=radio]:checked')?.value;if(!choice){setNote('เลือกเปลี่ยนแผนกหรือยกเลิกงานแผนกนี้ก่อนยืนยัน',true);return;}if(choice==='change')resolveUnrelatedReceiver(a,routing,confirmButton);else act(a,'UNRELATED_CONFIRM',el);};routing.append(confirmButton);el.append(routing);
  }
  // V49: system admin rollback is per assignment; SQL enforces transition/version/reason.
- if(rights.system){const back=rights.rollbackTarget;if(back){const b=document.createElement('button');b.type='button';b.className='danger';b.textContent='ย้อนสถานะ → '+label(back);b.onclick=()=>adminRollback(a,back);actions.append(b);}}
+ if(rights.system){const back=rights.rollbackTarget;if(back){const b=document.createElement('button');b.type='button';b.className='danger';b.textContent=back==='IN_PROGRESS'&&a.status==='IN_PROGRESS'?'ย้อนกลับก่อนส่งหัวหน้า':'ย้อนสถานะ → '+label(back);b.onclick=()=>adminRollback(a,back);actions.append(b);}}
  for(const btnNote of el.querySelectorAll('.media-note-save'))btnNote.addEventListener('click',async()=>{
   const input=[...el.querySelectorAll('.media-note-input')].find(x=>x.dataset.attachment===btnNote.dataset.attachment);
   if(!input)return;btnNote.disabled=true;try{await rpc('qa_v38_media_set_note',{p_attachment_id:btnNote.dataset.attachment,p_note:input.value});setNote('บันทึกหมายเหตุเรียบร้อย');}catch(e){setNote('บันทึกหมายเหตุไม่สำเร็จ: '+e.message,true)}finally{btnNote.disabled=false}
@@ -386,7 +447,7 @@ function organizeDetailPanels(issueSheet,issueHost){
 async function renderHistory(result){
  const box=$('historyRows');box.replaceChildren();try{if(result.status==='rejected')throw result.reason;const events=result.value;
  const names={ACCEPT:'รับงาน',SAVE_DRAFT:'บันทึกการดำเนินการ',REOPEN_RESPONSE:'เปิดแก้ไขก่อนตรวจรับ',REQUEST_APPROVAL:'ส่งให้หัวหน้าอนุมัติ',HEAD_SEND:'หัวหน้าแผนกส่งงานโดยตรง',APPROVE:'หัวหน้าอนุมัติ',RETURN:'หัวหน้าไม่อนุมัติ',REQUESTER_PASS:'ผู้แจ้งตรวจรับผ่าน',REQUESTER_FAIL:'ผู้แจ้งไม่ผ่านการตรวจรับ',ADMIN_ROLLBACK:'System Admin ย้อนสถานะ',UNRELATED_REQUEST:'แจ้งไม่เกี่ยวข้อง',UNRELATED_CONFIRM:'ผู้แจ้งยืนยันถอดแผนก',UNRELATED_REJECT:'ผู้แจ้งคงแผนกไว้'};
- for(const e of events||[]){const div=document.createElement('div');div.className='history-row';div.textContent=new Date(e.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})+' · '+(e.department_code||'')+' · '+(names[e.action]||e.action);box.append(div)}
+ for(const e of events||[]){const div=document.createElement('div');div.className='history-row';div.textContent=new Date(e.created_at).toLocaleString('th-TH',{timeZone:'Asia/Bangkok'})+' · '+(e.department_code||'')+' · '+(['REQUEST_HEADER_UPDATED','REQUEST_FULL_UPDATED'].includes(e.details?.kind)?'แก้ไขข้อมูลใบแจ้ง':names[e.action]||e.action);box.append(div)}
  if(!events?.length)box.textContent='ยังไม่มีประวัติการดำเนินงาน';
  }catch(e){box.textContent='ไม่สามารถโหลดประวัติ: '+e.message}
 }
@@ -492,7 +553,7 @@ async function adminRollback(a,target){
  const reason=prompt('ระบุเหตุผลในการย้อนสถานะของแผนก '+a.department_code+' จาก '+label(a.status)+' ไป '+label(target)+' (จำเป็น)');
  if(reason===null)return;
  if(!reason.trim()){setNote('ต้องระบุเหตุผลในการย้อนสถานะ',true);return;}
- if(!confirm('ยืนยันย้อนสถานะแผนก '+a.department_code+'?\nระบบจะเก็บประวัติการย้อนสถานะ และไม่เปลี่ยนแปลงแผนกอื่น'))return;
+ if(!confirm('ยืนยันย้อนสถานะแผนก '+a.department_code+'?\nระบบจะเก็บคำตอบ ไฟล์ และประวัติเดิมไว้ ไม่เปลี่ยนแปลงแผนกอื่น'))return;
  try{setNote('กำลังย้อนสถานะ...');await rpc('qa_vnext_admin_rollback_assignment',{p_assignment_id:a.assignment_id,p_target_status:target,p_expected_version:a.version,p_reason:reason.trim()});setNote('ย้อนสถานะเรียบร้อย');await render({assignmentId:a.assignment_id});}
  catch(e){setNote('ย้อนสถานะไม่สำเร็จ: '+e.message,true);}
 }

@@ -29,7 +29,7 @@ function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const canHeadReview=role==='department_admin'&&own&&s==='IN_PROGRESS'&&requested(a)&&!approved(a)&&!unrelated;
  const canFinalReview=((role==='department_admin'&&origin)||(system&&norm(j.from_department??j.fromDepartment)==='system'))&&s==='WAITING_REVIEW'&&approved(a);
  let rollbackTarget=system?({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[s]||null:null;
- if(rollbackTarget==='OPEN'&&(hasResponseFiles||requested(a)||approved(a)||['receiver_problem_detail','problem_analysis','corrective_action','preventive_action'].some(k=>String(a[k]||'').trim())))rollbackTarget=null;
+ if(system&&s==='IN_PROGRESS'&&requested(a))rollbackTarget='IN_PROGRESS';
  return {own,origin,owner,system,responsible,
  canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated&&(!system||!value(a,'accepted_at','acceptedAt')),
  canEdit,canReopenResponse,canRequestApproval:canEdit&&role==='user',canHeadSend:canEdit&&role==='department_admin'&&own,
