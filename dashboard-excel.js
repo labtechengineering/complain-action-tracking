@@ -27,9 +27,9 @@ function makeXlsx(sheets){
  actual.forEach((sheet,index)=>{
   const keys=[...new Set([...(sheet.keys||[]),...sheet.rows.flatMap(r=>Object.keys(r))])];if(keys.length>16384)throw Error('จำนวนคอลัมน์เกินขีดจำกัด Excel');if(!keys.length)keys.push('ข้อมูล');
   const data=[`<row r="1" ht="32" customHeight="1">${keys.map((k,i)=>cell(names[k]||k,k,col(i)+'1',true)).join('')}</row>`];
-  sheet.rows.forEach((r,n)=>data.push(`<row r="${n+2}">${keys.map((k,i)=>cell(r[k],k,col(i)+(n+2))).join('')}</row>`));
-  const last=col(keys.length-1)+(sheet.rows.length+1),cols=keys.map((k,i)=>`<col min="${i+1}" max="${i+1}" width="${/detail|description|analysis|action$|remark|reason|comment|summary|note/.test(k)?48:/_at$|_date$/.test(k)?23:26}" customWidth="1"/>`).join('');
-  put(`xl/worksheets/sheet${index+1}.xml`,`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${ns}"><dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${data.join('')}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`);
+  sheet.rows.forEach((r,n)=>{const lines=Math.max(1,...keys.map(k=>String(r[k]??'').split('\n').reduce((count,line)=>count+Math.max(1,Math.ceil([...line].length/Math.max(8,(sheet.widths?.[k]||26)-2))),0)));const height=Math.min(409,Math.max(30,lines*16+10));data.push(`<row r="${n+2}" ht="${height}" customHeight="1">${keys.map((k,i)=>cell(r[k],k,col(i)+(n+2))).join('')}</row>`);});
+  const last=col(keys.length-1)+(sheet.rows.length+1),cols=keys.map((k,i)=>`<col min="${i+1}" max="${i+1}" width="${sheet.widths?.[k]||(/detail|description|analysis|action$|remark|reason|comment|summary|note/.test(k)?48:/_at$|_date$/.test(k)?23:26)}" customWidth="1"/>`).join('');
+  put(`xl/worksheets/sheet${index+1}.xml`,`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${ns}"><dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${data.join('')}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`);
  });
  put('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${actual.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`);
  put('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
@@ -38,20 +38,62 @@ function makeXlsx(sheets){
  put('xl/styles.xml',`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="${ns}"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy hh:mm"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF193B60"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
  return excelZip.zipSync(files,{level:6});
 }
-function workbookData(records,scope,asOf,categories={}){
- const sheets=[{name:'ใบงาน',keys:['car_code','job_id','serial_no','customer_name','country','from_department','source_type','requester_remark','created_at'],rows:[]},{name:'ปัญหาและการดำเนินงาน',keys:['car_code','issue_code','job_id','issue_id','issue_number','department_code','status','category_code','category_name','category_other','description','receiver_problem_detail','problem_analysis','corrective_action','preventive_action','due_date','responsible_name'],rows:[]},{name:'ประวัติรอบแก้ไข',keys:['car_code','job_id','assignment_id','department_code','round_no','receiver_problem_detail','problem_analysis','corrective_action','preventive_action','rejection_reason'],rows:[]},{name:'ไฟล์แนบ',keys:['car_code','job_id','attachment_id','scope','issue_id','assignment_id','response_round','storage_path','note'],rows:[]},{name:'ประวัติการดำเนินงาน',keys:['car_code','job_id','department_code','action','created_at','actor_id','change_summary'],rows:[]},{name:'บันทึกระบบเดิม',keys:['car_code','job_id','record_type'],rows:[]}];
- for(const record of records){
-  const j=record.job||{},identity={car_code:j.car_code||j.job_id,job_id:j.job_id},common={...identity,serial_no:j.serial_no,customer_name:j.customer_name,country:j.country,from_department:j.from_department,source_type:j.source_type};
-  const pageUrl=new URL('vnext-job.html',location.href);pageUrl.searchParams.set('id',j.job_id);sheets[0].rows.push({...j,link:pageUrl.href});
-  const issueMap=new Map((record.issues||[]).map(i=>[String(i.issue_id),i])),assignmentMap=new Map((record.assignments||[]).map(a=>[String(a.assignment_id),a]));
-  for(const a of record.assignments||[]){const {issue_ids,...fields}=a;const issues=(issue_ids||[]).map(id=>issueMap.get(String(id))).filter(Boolean);for(const i of issues.length?issues:[{}])sheets[1].rows.push({...common,...i,...fields,issue_created_at:i.created_at,category_name:categories[i.category_code]||i.category_code||'',issue_code:i.issue_number?identity.car_code+'-'+String(i.issue_number).padStart(2,'0'):'',link:pageUrl.href});}
-  const linked=new Set((record.assignments||[]).flatMap(a=>(a.issue_ids||[]).map(String)));for(const i of record.issues||[])if(!linked.has(String(i.issue_id)))sheets[1].rows.push({...common,...i,issue_created_at:i.created_at,category_name:categories[i.category_code]||i.category_code||'',issue_code:identity.car_code+'-'+String(i.issue_number||1).padStart(2,'0'),link:pageUrl.href});
-  for(const r of record.rounds||[])sheets[2].rows.push({...identity,department_code:assignmentMap.get(String(r.assignment_id))?.department_code,...r});
-  for(const f of record.files||[])sheets[3].rows.push({...identity,...f});
-  for(const h of record.audit||[])sheets[4].rows.push({...identity,department_code:assignmentMap.get(String(h.assignment_id))?.department_code,...h});
-  for(const [key,type]of [['legacy_logs','การแก้ไขเดิม'],['legacy_files','ไฟล์เดิม'],['reports','รายงาน'],['legacy_history','ประวัติเดิม']])for(const r of record[key]||[])sheets[5].rows.push({...identity,record_type:type,...r});
+const formColumns=[
+ ['car_code','เลขใบงาน',24],['created_at','วันที่แจ้ง',23],['issuer_name','ผู้แจ้ง',24],['from_department','แผนกผู้แจ้ง',17],['source_type','ประเภทงาน',20],['serial_no','Serial Number',23],['customer_name','ลูกค้า',22],['country','ประเทศ',18],['category_name','ประเภทปัญหา',28],['description','เรื่องที่แจ้ง',48],['receiver_departments','แผนกรับเรื่อง',19],['responder','ผู้ตอบกลับ',29],['due_date','วันกำหนดเสร็จ',27],['receiver_problem_detail','รายละเอียดปัญหา/ข้อบกพร่อง',45],['problem_analysis','วิเคราะห์สาเหตุ',48],['corrective_action','การแก้ปัญหา',45],['preventive_action','การป้องกัน',48],['returned_at','วันที่ส่งงานกลับ',28],['current_status','สถานะปัจจุบัน',31],['reviewer','ผู้ตรวจรับ',24],['reviewed_at','วันที่ตรวจรับ',23],['review_result','ผลตรวจรับ',31],['requester_remark','Remark',30]
+];
+Object.assign(names,Object.fromEntries(formColumns.map(([key,title])=>[key,title])));
+const clean=v=>String(v??'').trim();
+const person=v=>{const s=clean(v);return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)?'':s;};
+function dateText(v){
+ if(!v)return '';
+ if(/^\d{4}-\d\d-\d\d$/.test(String(v))){const [y,m,d]=v.split('-');return d+'/'+m+'/'+y;}
+ const date=new Date(v);if(Number.isNaN(+date))return '';
+ return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date).replace(',','');
+}
+function latestDate(values){return values.filter(v=>v&&Number.isFinite(Date.parse(v))).sort((a,b)=>Date.parse(b)-Date.parse(a))[0]||null;}
+function statusText(a){
+ const status=String(a.status||'').toUpperCase();
+ if(status==='CLOSED')return 'สำเร็จ (ตรวจรับผ่าน)';
+ if(status==='CANCELLED')return 'ยกเลิก';
+ if(a.unrelated_requested_at)return 'รอพิจารณาแผนกรับผิดชอบ';
+ if(status==='OPEN')return 'รอแผนกรับเรื่องรับงาน';
+ if(status==='WAITING_REVIEW')return 'รอฝ่ายผู้แจ้งตรวจรับ';
+ if(status==='REWORK')return 'กำลังแก้ไขหลังตรวจรับไม่ผ่าน';
+ if(status==='IN_PROGRESS'){
+  if(a.approval_requested_at&&!a.approved_at)return 'รอหัวหน้าแผนกอนุมัติ';
+  if(a.needs_rework)return 'กำลังแก้ไขหลังตรวจรับไม่ผ่าน';
+  if(a.accepted_at&&!a.responsible_user&&!a.responsible_name)return 'รอแผนกเริ่มดำเนินการ';
+  return 'กำลังดำเนินการ';
  }
- sheets.push({name:'ข้อมูลการส่งออก',keys:['หัวข้อ','ค่า'],rows:[{หัวข้อ:'ขอบเขต',ค่า:scope==='ALL'?'ทุกแผนก (System Admin)':scope},{หัวข้อ:'จำนวนใบงาน',ค่า:records.length},{หัวข้อ:'ช่วงเวลา',ค่า:'ทุกช่วงเวลา ตามสิทธิ์ของบัญชีที่ดาวน์โหลด'},{หัวข้อ:'เวลาเริ่มส่งออก',ค่า:asOf},{หัวข้อ:'วันที่ในไฟล์',ค่า:'เวลาประเทศไทย UTC+7'},{หัวข้อ:'ข้อมูลไฟล์แนบ',ค่า:'เป็นข้อมูลไฟล์และตำแหน่งจัดเก็บ ไม่ได้แนบไฟล์รูป/วิดีโอลงใน Excel'},{หัวข้อ:'ใบงานในถังขยะ',ค่า:'ไม่รวมใบงานที่อยู่ในถังขยะ'}]});return sheets;
+ return 'ไม่ทราบสถานะ';
+}
+function grouped(assignments,get,{date=false,empty=''}={}){
+ const items=assignments.map(a=>({department:clean(a.department_code),value:get(a)}));
+ if(items.length<=1)return items[0]?.value??'';
+ if(!items.some(i=>i.value!==null&&i.value!==undefined&&clean(i.value)!==''))return '';
+ return items.map(({department,value})=>{const text=clean(value)?(date?dateText(value):String(value)):empty;return text?(department?department+': ':'')+text:'';}).filter(Boolean).join('\n');
+}
+function workbookData(records,scope,asOf,categories={}){
+ if(records.length>1048575)throw Error('จำนวนใบงานเกินขีดจำกัดตารางเดียวของ Excel ยังไม่ได้สร้างไฟล์');
+ const rows=records.map(record=>{
+  const j=record.job||{},issues=[...(record.issues||[])].sort((a,b)=>Number(a.issue_number||0)-Number(b.issue_number||0));
+  if(!issues.length&&clean(j.problem_detail))issues.push({issue_number:1,description:j.problem_detail,category_code:j.category});
+  const issueLines=get=>issues.map(i=>{const value=clean(get(i));return value?(issues.length>1?String(i.issue_number||1).padStart(2,'0')+'. ':'')+value:'';}).filter(Boolean).join('\n');
+  const category=i=>(categories[i.category_code]||clean(i.category_code)||'')+(clean(i.category_other)?': '+clean(i.category_other):'');
+  const assignments=[...(record.assignments||[])];
+  if(!assignments.length){const logs=[...(record.legacy_logs||[])].sort((a,b)=>Number(b.round_no||0)-Number(a.round_no||0)),last=logs[0]||{};
+   assignments.push({department_code:j.to_department,status:j.status,responsible_name:person(last.assignee_name||j.assignee_name),due_date:last.target_date||j.target_date,receiver_problem_detail:j.problem_detail,problem_analysis:'',corrective_action:last.corrective_action||j.initial_action,preventive_action:last.preventive_action||j.preventive_action,_returned_at:latestDate([last.submitted_at,j.corrective_at]),requester_reviewed_at:j.closed_at,requester_reviewed_by_name:person(last.qa_inspector||j.approved_by),requester_review_reason:last.result==='REJECT'?last.qa_comment:'',_legacy_result:last.result});
+  }
+  const sentAt=a=>latestDate([a.approved_at,a._returned_at,...(record.audit||[]).filter(h=>String(h.assignment_id)===String(a.assignment_id)&&['APPROVE','HEAD_SEND'].includes(h.action)).map(h=>h.created_at),...(record.rounds||[]).filter(r=>String(r.assignment_id)===String(a.assignment_id)).map(r=>r.approved_at)]);
+  const reviewResult=a=>a.status==='CLOSED'||a._legacy_result==='PASS'?'ผ่าน':clean(a.requester_review_reason)?'ไม่ผ่าน: '+clean(a.requester_review_reason):a.status==='WAITING_REVIEW'?'ยังไม่ได้ตรวจรับ':'';
+  const row={
+   car_code:j.car_code||j.job_id||'',created_at:j.created_at||null,issuer_name:person(j.issuer_name),from_department:j.from_department==='SYSTEM'?'System Admin':j.from_department||'',source_type:j.source_type||'',serial_no:j.serial_no||'',customer_name:j.customer_name||'',country:j.country||'',category_name:issueLines(category),description:issueLines(i=>i.description),receiver_departments:[...new Set(assignments.map(a=>clean(a.department_code)).filter(Boolean))].join(', '),
+   responder:grouped(assignments,a=>person(a.responsible_name)),due_date:grouped(assignments,a=>a.due_date,{date:true,empty:'ยังไม่ระบุ'}),receiver_problem_detail:grouped(assignments,a=>a.receiver_problem_detail),problem_analysis:grouped(assignments,a=>a.problem_analysis),corrective_action:grouped(assignments,a=>a.corrective_action),preventive_action:grouped(assignments,a=>a.preventive_action),returned_at:grouped(assignments,sentAt,{date:true,empty:'ยังไม่ได้ส่ง'}),current_status:grouped(assignments,statusText),reviewer:grouped(assignments,a=>person(a.requester_reviewed_by_name)),reviewed_at:grouped(assignments,a=>a.requester_reviewed_at,{date:true}),review_result:grouped(assignments,reviewResult),requester_remark:j.requester_remark||''
+  };
+  for(const [key,title]of formColumns)if(typeof row[key]==='string'&&row[key].length>32767)throw Error('ใบงาน '+row.car_code+' ช่อง '+title+' ยาวเกินขีดจำกัดหนึ่งเซลล์ของ Excel ยังไม่ได้สร้างไฟล์');
+  return row;
+ });
+ return [{name:'ข้อมูลใบงาน',keys:formColumns.map(c=>c[0]),widths:Object.fromEntries(formColumns.map(c=>[c[0],c[2]])),rows}];
 }
 async function fetchRecords(onProgress){
  const records=[],seen=new Set();let cursor=null,asOf=null,scope=null;
@@ -67,7 +109,7 @@ async function download(){const button=$('exportExcel'),note=$('excelExportStatu
   let categories={};try{const {data,error}=await QA.client.from('qa_settings').select('code,name').eq('setting_type','CATEGORY').range(0,9999);if(!error)categories=Object.fromEntries((data||[]).map(r=>[r.code,r.name]));}catch{};
   note.textContent='กำลังสร้างไฟล์ Excel '+result.records.length.toLocaleString('th-TH')+' ใบงาน...';
   const bytes=makeXlsx(workbookData(result.records,result.scope,result.asOf,categories)),blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;
-  const stamp=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());a.download='Complain_All_Jobs_'+String(result.scope).replace(/[^a-zA-Z0-9ก-๙_-]/g,'_')+'_'+stamp+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);note.textContent='สร้างไฟล์ Excel แล้ว '+result.records.length.toLocaleString('th-TH')+' ใบงาน';
+  const stamp=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());a.download='Complain_Job_Form_'+String(result.scope).replace(/[^a-zA-Z0-9ก-๙_-]/g,'_')+'_'+stamp+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);note.textContent='สร้างไฟล์ Excel แล้ว '+result.records.length.toLocaleString('th-TH')+' ใบงาน';
  }catch(e){note.textContent='ดาวน์โหลด Excel ไม่สำเร็จ: '+(e.message||String(e));}finally{button.disabled=false;button.removeAttribute('aria-busy');}}
 async function boot(){await QA.whenReady();const p=QA.profile||{},role=String(p.role||'').toLowerCase();if(p.active===false||p.approval_status&&p.approval_status!=='APPROVED'||!['system_admin','department_admin','user','viewer'].includes(role)||role!=='system_admin'&&!String(p.department||'').trim())return;const button=$('exportExcel');if(!button)return;button.hidden=false;button.disabled=false;button.addEventListener('click',download);}
 window.QAExcelExport=Object.freeze({makeXlsx,workbookData,fetchRecords});
