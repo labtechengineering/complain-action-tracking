@@ -1,0 +1,21 @@
+#captureArea .response-fields-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+#captureArea .response-field-card[data-field-step="1"]{display:none!important}
+#captureArea .live-answer-row{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr);border:1px solid #d4dfec;border-radius:10px;overflow:hidden;background:var(--surface,#fff);margin:0 0 12px}
+#captureArea .live-answer-main{padding:14px 16px;min-width:0;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+#captureArea .live-answer-main textarea{box-sizing:border-box;width:100%;min-width:0;font-size:16px;line-height:1.7}
+#captureArea .live-source-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.85;margin:8px 0 0}
+#captureArea .live-comment{border-left:1px solid #dbe4ef;background:var(--surface-soft,#f3f7fc);padding:13px;min-width:0}
+#captureArea .live-note-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;font-size:12px;color:#668098;margin-bottom:7px}
+#captureArea .live-note-heading b{font-weight:500}#captureArea .live-note-status{font-size:10px;color:#6d8d80}
+#captureArea .live-comment textarea,#captureArea .live-qa-note textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;font-size:14px;line-height:1.75;background:var(--surface,#fff);margin:0;padding:9px}
+#captureArea .live-note-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.85;margin:0}
+#captureArea .live-empty-comment{grid-template-columns:minmax(0,1fr)}#captureArea .live-qa-note{padding:14px 16px;margin-top:16px;border:1px solid #d8e3ee;border-radius:10px;background:var(--surface-soft,#f3f7fc)}
+#captureArea .live-note-retry,#captureArea .live-note-reload{font-size:11px;padding:5px 8px;margin:8px 0 0}
+#captureArea .has-note-error .live-note-status,.live-forward-error{color:#b43a46}#captureArea .live-review-input{margin-top:15px}#captureArea .live-review-result{white-space:pre-wrap;font-size:13px;border-left:3px solid #93b7d8;padding-left:12px}
+#captureArea .live-forward-history{font-size:12px;margin:12px 0;color:#627b92}#captureArea .live-forward-history summary{cursor:pointer}#captureArea .live-forward-history p{white-space:pre-wrap;overflow-wrap:anywhere}
+.live-forward-dialog{box-sizing:border-box;width:calc(100% - 30px);max-width:560px;max-height:90vh;overflow:auto;border:1px solid #ccdbea;border-radius:14px;padding:22px;color:inherit;background:var(--surface,#fff)}.live-forward-dialog::backdrop{background:#102d4d66}.live-forward-dialog select{box-sizing:border-box;width:100%;font:inherit;margin:7px 0 14px;padding:9px;border:1px solid #c9d8e8;border-radius:8px}.live-forward-choice{display:flex;gap:8px;align-items:center;margin:10px 0;font-weight:400;font-size:14px}.live-forward-choice input{width:17px!important;min-width:17px!important;inline-size:17px!important;height:17px;flex:0 0 17px;padding:0!important;margin:0!important}.live-forward-dialog fieldset{border:0;margin:16px 0;padding:0}.live-forward-dialog legend{font-size:13px;color:#6b849b}.live-forward-targets{display:flex;gap:12px;flex-wrap:wrap}.live-dialog-actions{display:flex;justify-content:flex-end;gap:9px}.live-forward-dialog textarea{font:inherit;box-sizing:border-box;width:100%;max-width:100%;padding:10px;border:1px solid #c9d8e8;border-radius:8px}
+@media(max-width:680px){#captureArea .live-answer-row{grid-template-columns:minmax(0,1fr)}#captureArea .live-comment{border-left:0;border-top:1px solid #dbe4ef;padding:12px}#captureArea .live-answer-main{padding:12px}#captureArea .live-comment textarea,#captureArea .live-qa-note textarea{font-size:16px;min-height:70px}}
+@media print{.live-note-retry,.live-note-reload,.live-note-status,.live-forward-button,.live-forward-dialog{display:none!important}}
+#captureArea .department-panel .response-field-card::before{display:none!important}
+#captureArea .department-panel .live-answer-main{padding:14px 16px!important}
+#captureArea .department-panel .live-answer-main textarea{min-height:90px}

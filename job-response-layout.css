@@ -11,15 +11,3 @@
 #captureArea .current-response-media[hidden]{display:none!important}
 @media(max-width:760px){#captureArea .department-panel .response-fields-grid{grid-template-columns:minmax(0,1fr);gap:10px}#captureArea .department-panel .response-field-card{padding:12px!important}}
 @media print{#captureArea .department-panel .response-field-card,#captureArea .response-status-box{break-inside:avoid}}
-
-/* Constrain the native date control and its grid item at phone/tablet widths. */
-@media screen and (max-width:760px){
- #captureArea .department-panel .row:has(>label>.due){display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0;max-width:100%}
- #captureArea .department-panel .row>label:has(>.due){display:block;box-sizing:border-box;width:100%;min-width:0!important;max-width:100%;min-inline-size:0}
- #captureArea .department-panel input.due[type="date"]{display:block;box-sizing:border-box!important;width:100%!important;inline-size:100%!important;min-width:0!important;min-inline-size:0!important;max-width:100%!important;max-inline-size:100%!important;min-height:44px;margin-left:0;margin-right:0;padding:10px!important;font-size:16px!important;line-height:1.5;-webkit-appearance:none;appearance:none}
- #captureArea .department-panel input.due[type="date"]::-webkit-date-and-time-value{min-width:0;text-align:left}
- #captureArea .department-panel input.due[type="date"]::-webkit-datetime-edit{min-width:0;padding:0}
-}
-
-/* Match the approved lean detail preview after removing the repeated issue text. */
-#captureArea .issue-disclosure-body>.issue-operations-title{margin-top:0}

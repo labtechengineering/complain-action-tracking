@@ -1,5 +1,5 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
+const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let issuerEntryNormalized=false;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
 function requestEditError(e){const text=e?.message||String(e);if(text.includes('VERSION_CONFLICT'))return 'มีคนแก้ไขข้อมูลระหว่างเปิดหน้านี้ กรุณาเปิดแก้ไขใหม่';if(text.includes('JOB_ALREADY_ACCEPTED_OR_ACTIVE'))return 'มีแผนกรับงานแล้ว แก้ข้อมูลใบแจ้งไม่ได้จนกว่า System Admin จะย้อนกลับรอรับงานครบทุกแผนก';if(text.includes('DEPARTMENT_HAS_SAVED_WORK_KEEP_ASSIGNED'))return 'แผนกนี้มีคำตอบหรือไฟล์เดิมอยู่ ต้องคงแผนกนี้ไว้เพื่อรักษาข้อมูล สามารถเพิ่มแผนกอื่นได้';if(['PGRST202','42883'].includes(String(e?.code||'')))return 'กรุณารัน SQL ชุดแก้ไขข้อมูลใบแจ้งก่อน';return text;}
 async function openRequestHeaderEditor(){
  if($('requestHeaderEditor')){$('requestHeaderEditor').scrollIntoView({behavior:'smooth',block:'start'});return;}
@@ -107,7 +107,7 @@ async function mediaFor(issueIds,assignmentId,canEdit=false,round=null){const pe
 async function ensureHtml2Canvas(){if(window.html2canvas)return;
  await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('โหลดเครื่องมือสร้างภาพไม่สำเร็จ'));document.head.append(s);});}
 async function receiverChangePng(ev){await ensureHtml2Canvas();
- const issue=(detail.assignments||[]).flatMap(a=>a.issues||[]).find(i=>i.issue_id===ev.issue_id);
+ const issue=(detail.assignments||[]).flatMap(a=>a.issues||[]).find(i=>i.issue_id===ev.issue_id)||(ev.issue_description?{description:ev.issue_description,category_code:ev.category_code,category_other:ev.category_other,issue_number:ev.issue_number}:null);
  const escField=(key,val)=>`<div style="display:flex;gap:12px;margin:8px 0"><b style="min-width:180px">${esc(key)}</b><span style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(val||'-')}</span></div>`;
  const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;width:900px;background:#fff;padding:38px 42px;font:19px Arial,Tahoma,sans-serif;line-height:1.6;color:#15233b;z-index:999999';
  host.innerHTML=`<h1 style="font-size:28px;margin:0 0 8px">Complain &amp; Action Tracking</h1><h2 style="font-size:24px;color:#b45309;margin:0 0 18px">${esc(ev.confirm_original?'ยืนยันฝ่ายรับเรื่องเดิม':'แจ้งแก้ไขแผนกรับผิดชอบ')}</h2>
@@ -195,7 +195,7 @@ function guideDetail(context={}){
 }
 
 function detailState(state){const host=$('captureArea');if(host){host.dataset.detailState=state;host.setAttribute('aria-busy',String(state==='loading'));}const loading=$('detailLoading');if(loading)loading.hidden=state!=='loading';$('pdfButton').disabled=state!=='ready';}
-async function render(requestedFocus={}){const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
+async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
  try{
  // These secured reads use the same job ID and do not depend on one another.
  // Settle every read so optional history errors cannot reject an unread promise.
@@ -203,10 +203,11 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  const loaded=await Promise.allSettled([
   loadCategoryNames(),rpc('qa_vnext_job_detail',{p_job_id:jobId}),loadMedia(),
   rpc('qa_v51_assignment_rounds',{p_job_id:jobId}),rpc('qa_issue_display_codes',{p_job_id:jobId}),
-  rpc('qa_v38_job_history',{p_job_id:jobId})
+  rpc('qa_v38_job_history',{p_job_id:jobId}),rpc('qa_workflow_notes_v1',{p_job_id:jobId})
  ]);
- for(const index of [0,1,2,4])if(loaded[index].status==='rejected')throw loaded[index].reason;
+ for(const index of [0,1,2,4,6])if(loaded[index].status==='rejected')throw loaded[index].reason;
  detail=loaded[1].value;if(QA.profile?.role==='viewer')detail.can_manage_issues=false;
+ detail._workflow_history=loaded[5].status==='fulfilled'?loaded[5].value:[];
  detail.assignments=QAWorkflow.visibleAssignments(QA.profile,detail,detail.assignments||[]);
  media=loaded[2].value.rows;mediaRoundReady=loaded[2].value.roundReady;
  const codeRows=loaded[4].value;
@@ -229,7 +230,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  if(sessionStorage.getItem('qa-full-edit-lines:'+jobId))requestLineRetry();
  $('details').innerHTML=`<dl class="record-facts"><div><dt>Serial Number</dt><dd>${esc(detail.serial_no||'-')}</dd></div><div><dt>ลูกค้า</dt><dd>${esc(detail.customer_name||'-')}</dd></div><div><dt>ประเทศ</dt><dd>${esc(detail.country||'-')}</dd></div></dl>${String(detail.requester_remark||'').trim()?'<p class="record-remark"><b>Remark:</b> '+esc(detail.requester_remark)+'</p>':''}`;
  const list=$('assignments');list.replaceChildren();
- if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';renderTracker(detail);detailState('ready');return true;}
+ if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';QAWork.emptyForwarded(list,loaded[5].status==='fulfilled'?loaded[5].value:[],media,getUrl);renderTracker(detail);if(list.dataset.forwardedEmpty==='true')document.querySelectorAll('.tracker-stages [data-step]').forEach(n=>{n.classList.remove('current','done');n.removeAttribute('aria-current');});detailState('ready');return true;}
  // Section 2 is one permanent container. Every issue remains visible in order.
  const issueSheet=document.createElement('section');issueSheet.className='sheet issues-section';issueSheet.id='allIssues';
  issueSheet.innerHTML='<h2>รายละเอียด</h2><div id="allIssueCards"></div>';
@@ -350,7 +351,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  if(rights.canReopenResponse)btn('แก้ไขรายละเอียด','REOPEN_RESPONSE');
  if(rights.canApprove){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
  if(isFinalReviewer){btn('ผ่าน','REQUESTER_PASS');btn('ไม่ผ่าน','REQUESTER_FAIL','danger');}
- if(rights.canRequestUnrelated)btn('แจ้งไม่เกี่ยวข้องกับแผนก','UNRELATED_REQUEST','secondary');
+ // Direct forwarding replaces new unrelated-return requests. Existing pending cases remain resolvable.
  if(rights.canResolveUnrelated){
   const routing=document.createElement('div');routing.className='unrelated-routing no-print';
   routing.innerHTML='<h3>พิจารณาแผนกรับผิดชอบ</h3><div class="unrelated-choices"><label><input type="radio" name="unrelated-'+esc(a.assignment_id)+'" value="change"> เปลี่ยนแผนก</label><label><input type="radio" name="unrelated-'+esc(a.assignment_id)+'" value="cancel"> ยกเลิกงานแผนกนี้</label></div><div class="unrelated-target-fields" hidden><label>ปัญหาที่ต้องการเปลี่ยน<select class="unrelated-issue">'+a.issues.map(i=>'<option value="'+esc(i.issue_id)+'">ปัญหา '+esc(i.issue_number)+' · '+esc(i.description)+'</option>').join('')+'</select></label><label>ฝ่ายรับเรื่องใหม่<select class="unrelated-target"><option value="">เลือกแผนกใหม่</option>'+receivingDepartments.filter(d=>d.code!==a.department_code).map(d=>'<option value="'+esc(d.code)+'">'+esc(d.code)+'</option>').join('')+'</select></label></div>';
@@ -386,7 +387,7 @@ async function render(requestedFocus={}){const focusContext={...captureDetailFoc
  (responseHost||issueHost).append(el);
  if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();el.append(outside);}
  }
- organizeDetailPanels(issueSheet,issueHost);renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
+ organizeDetailPanels(issueSheet,issueHost);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,saveDraft:async(a,panel)=>{const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value,due_date:panel.querySelector('.due').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';$('assignments').replaceChildren();detailState('error');return false;}}
 // Each issue is one collapsed list row. Move bound assignment forms between
 // issue folds so a shared response has exactly one live editor and one version.
@@ -401,7 +402,7 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const original of [...issueHost.querySelectorAll('.issue-department-group')]){
   const a=assignments.find(x=>String(x.assignment_id)===original.dataset.assignment);if(!a)continue;
   const panel=original.querySelector('.department-panel');if(panel)panel.remove();
-  for(const card of [...original.querySelectorAll('.issue-card')]){if(compactAdmin){card.dataset.referenceCode=card.querySelector('.issue-code')?.textContent||'';card.classList.add('admin-source-card');for(const n of [...card.children])if(n.matches('h3,p:not(.muted)'))n.remove();}
+  for(const card of [...original.querySelectorAll('.issue-card')]){for(const p of card.querySelectorAll(':scope>p:not(.muted)'))p.remove();if(compactAdmin){card.dataset.referenceCode=card.querySelector('.issue-code')?.textContent||'';card.classList.add('admin-source-card');for(const n of [...card.children])if(n.matches('h3,p:not(.muted)'))n.remove();}
    sourceCards.set(String(a.assignment_id)+':'+card.dataset.issueId,card);cardBank.append(card);}
   const group=document.createElement('section');group.className='issue-department-group issue-operation-group'+(compactAdmin?' admin-operation-group':'');group.id=original.id;group.dataset.assignment=a.assignment_id;group.dataset.departmentCode=a.department_code;
   group.innerHTML='<div class="operation-department-heading"><strong>'+esc(a.department_code)+'</strong>'+badge(a)+'</div>';
@@ -419,7 +420,7 @@ function organizeDetailPanels(issueSheet,issueHost){
  let activeIssue=null;const folds=[];
  for(const {issue:i,assignments:related} of [...issues.values()].sort((a,b)=>Number(a.issue.issue_number)-Number(b.issue.issue_number))){
   const fold=document.createElement('details');fold.className='issue-disclosure'+(compactAdmin?' admin-compact-issue':'');fold.dataset.issueId=String(i.issue_id);fold.dataset.assignmentIds=related.map(a=>String(a.assignment_id)).join(',');
-  fold.innerHTML='<summary aria-label="ปัญหา '+esc(i.issue_number)+': '+esc(i.description)+'"><span class="issue-row-number">'+esc(i.issue_number)+'.</span><span class="issue-row-description" title="'+esc(i.description)+'">'+esc(i.description)+'</span><span class="issue-row-departments">'+related.map(a=>'<span class="issue-department-state" data-filter-assignment="'+esc(a.assignment_id)+'"><span class="issue-responsible-department">'+esc(a.department_code)+'</span>'+badge(a)+'</span>').join('')+'</span><span class="issue-row-chevron" aria-hidden="true"></span></summary>';
+  fold.innerHTML='<summary aria-label="ปัญหา '+esc(i.issue_number)+': '+esc(i.description)+'"><span class="issue-row-number">'+esc(i.issue_number)+'.</span><span class="issue-row-description" title="'+esc(i.description)+'">'+esc(categoryName(i.category_code,i.category_other||''))+'</span><span class="issue-row-departments">'+related.map(a=>'<span class="issue-department-state" data-filter-assignment="'+esc(a.assignment_id)+'"><span class="issue-responsible-department">'+esc(a.department_code)+'</span>'+badge(a)+'</span>').join('')+'</span><span class="issue-row-chevron" aria-hidden="true"></span></summary>';
   const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML=(compactAdmin?'<p class="admin-issue-reference">'+esc(sourceCards.get(String(related[0].assignment_id)+':'+String(i.issue_id))?.dataset.referenceCode||'')+' · '+esc(categoryName(i.category_code,i.category_other||''))+'</p>':'')+'<div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden>การดำเนินงาน</h3><div class="issue-operation-host" hidden></div>';fold.append(body);
   const mount=()=>{
    if(activeIssue===fold)return;
@@ -452,10 +453,11 @@ async function renderHistory(result){
  }catch(e){box.textContent='ไม่สามารถโหลดประวัติ: '+e.message}
 }
 function renderTracker(d){
- const all=d.assignments||[],issueId=QAStatus.issueFromHash(location.hash);
+ const all=d.assignments||[],originView=d.is_requester||QA.profile.role==='system_admin'||String(d.from_department||'').toLowerCase()===String(QA.profile.department||'').toLowerCase(),issueId=originView?null:QAStatus.issueFromHash(location.hash);
+ if(originView&&!issuerEntryNormalized){trackerDepartment='';issuerEntryNormalized=true;}
  const requestedDepartment=trackerDepartment;
  const idsParam=new URLSearchParams(location.search).get('assignments');
- const assignmentIds=idsParam===null?null:idsParam.split(',').filter(Boolean);
+ const assignmentIds=originView||idsParam===null?null:idsParam.split(',').filter(Boolean);
  const departments=[...new Set(all.map(a=>String(a.department_code)))];
  let selectedDepartment=departments.find(code=>code.toLowerCase()===requestedDepartment.toLowerCase())||'';
  const chips=$('departmentChips');chips.replaceChildren();chips.hidden=departments.length<=1;
@@ -514,11 +516,13 @@ async function resolveUnrelatedReceiver(a,root,button){
 const pendingAssignmentActions=new Set();
 async function act(a,action,el){
  if(pendingAssignmentActions.has(a.assignment_id))return;
+ if(!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ',true);return;}
  if(!QAWorkflow.allowed(action,QA.profile,detail,a,{legacyLocked:a._legacyLocked===true})){setNote('บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้ในสถานะปัจจุบัน',true);return;}
- let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:el.querySelector('.recv').value,problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,preventive_action:el.querySelector('.prevent').value,due_date:el.querySelector('.due').value};}
+ let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,preventive_action:el.querySelector('.prevent').value,due_date:el.querySelector('.due').value};}
  if(action==='UNRELATED_REQUEST'){const reason=prompt('แจ้งไม่เกี่ยวข้องกับแผนก '+a.department_code+' ก่อนรับงาน\nครอบคลุมปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ที่แผนกนี้ได้รับ\nระบุเหตุผลเพื่อส่งให้หัวหน้าฝ่ายผู้แจ้งพิจารณา');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='UNRELATED_CONFIRM'&&!confirm('ยืนยันว่าแผนก '+a.department_code+' ไม่เกี่ยวข้องกับปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ทั้งหมดที่แผนกนี้ได้รับ?\nจะยกเลิกเฉพาะการมอบหมายให้แผนกนี้ แผนกอื่นคงเดิม'))return;
- if(['RETURN','REQUESTER_FAIL'].includes(action)){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':'ระบุเหตุผลที่ไม่ผ่าน');if(!reason?.trim())return;data={reason:reason.trim()};}
+ if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)){const note=el.querySelector('.live-final-review-comment')?.value.trim()||'';if(action==='REQUESTER_FAIL'&&!note){setNote('กรุณาระบุความคิดเห็นก่อนตรวจรับไม่ผ่าน',true);return;}data={reason:note};}
+ if(action==='RETURN'){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':'ระบุเหตุผลที่ไม่ผ่าน');if(!reason?.trim())return;data={reason:reason.trim()};}
  if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};if(data.comment.length>2000){setNote('หมายเหตุรับงานแทนต้องไม่เกิน 2,000 ตัวอักษร',true);return;}}
  if(['APPROVE','REQUESTER_PASS','UNRELATED_REJECT'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
  const actionBar=document.querySelector('.department-action-bar[data-assignment="'+CSS.escape(String(a.assignment_id))+'"]');
@@ -540,7 +544,8 @@ async function act(a,action,el){
    await uploadResponse(a.assignment_id,responseQueues.get(el.dataset.queueKey)||[]);
    if(action==='SAVE_DRAFT')result=saved;
  }
- if(action!=='SAVE_DRAFT')result=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});
+ if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action))result=await rpc('qa_workflow_review_v1',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_comment:data.reason||''});
+ else if(action!=='SAVE_DRAFT')result=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});
  if(el.dataset.queueKey){responseDrafts.delete(el.dataset.queueKey);responseQueues.delete(el.dataset.queueKey);}
  setNote(action==='REOPEN_RESPONSE'?'เปิดแก้ไขแล้ว — แก้ข้อมูลและส่งตรวจใหม่':action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render({assignmentId:a.assignment_id,action});
  }catch(e){
@@ -575,7 +580,8 @@ async function uploadResponse(assignmentId,entries){
 }
 // Structured A4 document: text stays selectable and sections may flow across pages.
 // Detail and attachment data are already scoped by the server-side V38 RPCs.
-async function exportStructuredPdf(preview){
+async function exportStructuredPdf(preview){return QALiveReport.open(preview,{detail,media,jobId,rpc,getUrl,rounds:completedRounds,history:detail._workflow_history||[]});}
+async function legacyStructuredPdf(preview){
  if(!detail)throw new Error('ยังโหลดข้อมูลใบงานไม่ครบ');
  const doc=preview.document;
  doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ใบงาน '+esc(detail.car_code||jobId)+'</title></head><body><p>กำลังจัดหน้าเอกสาร...</p></body></html>');doc.close();
