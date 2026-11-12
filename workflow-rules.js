@@ -24,15 +24,15 @@ function permissions(p,j,a,{hasResponseFiles=false,legacyLocked=false}={}){
  const responsible=!!p.user_id&&String(a.responsible_user??a.responsibleUser??'')===String(p.user_id);
  const owner=j.is_requester===true||j.isRequester===true||!!p.user_id&&String(j.created_by??j.createdBy??'')===String(p.user_id);
  const s=state(a),unrelated=!!value(a,'unrelated_requested_at','unrelatedRequestedAt');
- const canEdit=active&&own&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
- const canReopenResponse=active&&own&&responsible&&!unrelated&&!legacyLocked&&((s==='IN_PROGRESS'&&requested(a)&&!approved(a))||s==='WAITING_REVIEW');
+ const canEdit=active&&(own||system)&&responsible&&s==='IN_PROGRESS'&&!requested(a)&&!unrelated&&!legacyLocked;
+ const canReopenResponse=active&&(own||system)&&responsible&&!unrelated&&!legacyLocked&&((s==='IN_PROGRESS'&&requested(a)&&!approved(a))||s==='WAITING_REVIEW');
  const canHeadReview=role==='department_admin'&&own&&s==='IN_PROGRESS'&&requested(a)&&!approved(a)&&!unrelated;
  const canFinalReview=((role==='department_admin'&&origin)||(system&&norm(j.from_department??j.fromDepartment)==='system'))&&s==='WAITING_REVIEW'&&approved(a);
  let rollbackTarget=system?({IN_PROGRESS:'OPEN',WAITING_REVIEW:'IN_PROGRESS',REWORK:'WAITING_REVIEW',CLOSED:'WAITING_REVIEW',CANCELLED:'OPEN'})[s]||null:null;
  if(system&&s==='IN_PROGRESS'&&requested(a))rollbackTarget='IN_PROGRESS';
  return {own,origin,owner,system,responsible,
- canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated&&(!system||!value(a,'accepted_at','acceptedAt')),
- canEdit,canReopenResponse,canRequestApproval:canEdit&&role==='user',canHeadSend:canEdit&&role==='department_admin'&&own,
+ canAccept:active&&(system||own)&&['OPEN','IN_PROGRESS'].includes(s)&&!a.responsible_user&&!a.responsibleUser&&!unrelated,
+ canEdit,canReopenResponse,canRequestApproval:canEdit&&(role==='user'||system),canHeadSend:canEdit&&role==='department_admin'&&own,
  canApprove:canHeadReview,canFinalReview,
  canRequestUnrelated:own&&s==='OPEN'&&!a.accepted_at&&!a.acceptedAt&&!a.responsible_user&&!a.responsibleUser&&!unrelated,
  canResolveUnrelated:active&&(system||role==='department_admin'&&origin)&&unrelated&&['OPEN','IN_PROGRESS'].includes(s),rollbackTarget};

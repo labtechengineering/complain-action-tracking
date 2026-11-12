@@ -313,7 +313,7 @@ async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAl
  if(a.unrelated_requested_at&&a.status!=='CANCELLED'){const note=document.createElement('p');note.className='shared-response-note';note.textContent='รอพิจารณาฝ่ายรับเรื่อง: '+(a.unrelated_reason||'แจ้งว่าไม่เกี่ยวข้อง');el.prepend(note);}
  const actions=el.querySelector('.actions');
  function btn(text,action,color='secondary'){const b=document.createElement('button');b.textContent=text;b.className=color;b.onclick=()=>act(a,action,el);actions.append(b);}
- if(rights.canAccept){if(QA.profile?.role==='system_admin'){const note=document.createElement('label');note.className='admin-accept-comment';note.textContent='หมายเหตุรับงานแทนแผนก (ไม่บังคับ · สูงสุด 2,000 ตัวอักษร)';const area=document.createElement('textarea');area.className='admin-accept-input';area.placeholder='พิมพ์ข้อความถึงแผนกผู้รับเรื่อง ข้อความจะบันทึกไว้ในรายละเอียดหลังรับงาน';area.maxLength=2000;note.append(area);actions.append(note);}btn(QA.profile?.role==='system_admin'?'รับงานแทนแผนก':'รับงาน','ACCEPT');}
+ if(rights.canAccept)btn('รับงาน','ACCEPT');
  if(canEditCurrent){btn('บันทึกแบบร่าง','SAVE_DRAFT');if(rights.canHeadSend)btn('ส่งงาน','HEAD_SEND');if(rights.canRequestApproval)btn('ส่งให้หัวหน้าตรวจสอบ','REQUEST_APPROVAL');}
  if(rights.canReopenResponse)btn('แก้ไขรายละเอียด','REOPEN_RESPONSE');
  if(rights.canApprove){btn('อนุมัติและส่งงาน','APPROVE');btn('ส่งกลับให้แก้ไข','RETURN','danger');}
@@ -492,7 +492,7 @@ async function act(a,action,el){
  if(action==='UNRELATED_CONFIRM'&&!confirm('ยืนยันว่าแผนก '+a.department_code+' ไม่เกี่ยวข้องกับปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ทั้งหมดที่แผนกนี้ได้รับ?\nจะยกเลิกเฉพาะการมอบหมายให้แผนกนี้ แผนกอื่นคงเดิม'))return;
  if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action)){const note=el.querySelector('.live-final-review-comment')?.value.trim()||'';if(action==='REQUESTER_FAIL'&&!note){setNote('กรุณาระบุความคิดเห็นก่อนตรวจรับไม่ผ่าน',true);return;}data={reason:note};}
  if(action==='RETURN'){const reason=prompt(action==='RETURN'?'ระบุเหตุผลที่ไม่อนุมัติ':'ระบุเหตุผลที่ไม่ผ่าน');if(!reason?.trim())return;data={reason:reason.trim()};}
- if(action==='ACCEPT'&&QA.profile.role==='system_admin'){data={comment:el.querySelector('.admin-accept-input')?.value.trim()||''};if(data.comment.length>2000){setNote('หมายเหตุรับงานแทนต้องไม่เกิน 2,000 ตัวอักษร',true);return;}}
+
  if(['APPROVE','REQUESTER_PASS','UNRELATED_REJECT'].includes(action)&&!confirm('ยืนยันการดำเนินการ?'))return;
  const actionBar=document.querySelector('.department-action-bar[data-assignment="'+CSS.escape(String(a.assignment_id))+'"]');
  const buttons=[...(actionBar?.querySelectorAll('button')||[])];
