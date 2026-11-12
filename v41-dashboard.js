@@ -201,6 +201,11 @@ function renderRows(){
  scheduleDashboardFit();
 }
 
+let returningView=null;
+const dashboardControls=['filter','day','week','month','year','dashScope','dashSearch'];
+function rememberDashboard(){window.QAReturn?.saveDashboard({controls:Object.fromEntries(dashboardControls.map(id=>[id,$(id).value])),selected,selectedDept,expanded,page,scrollY:Math.max(0,window.scrollY||0)});}
+function restoreControls(state){for(const id of dashboardControls){const node=$(id),value=state?.controls?.[id];if(typeof value!=='string')continue;if(node.tagName==='SELECT'&&![...node.options].some(option=>option.value===value))continue;node.value=value;}for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==$('filter').value;}
+function restoreList(state){selected=['all',...statuses.map(row=>row[0])].includes(state?.selected)?state.selected:'all';selectedDept=typeof state?.selectedDept==='string'?state.selectedDept:'';expanded=state?.expanded===true;page=Number.isInteger(state?.page)?Math.max(0,state.page):0;}
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
 function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',()=>{expanded=!expanded;page=0;renderRows()});$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});
  if(window.ResizeObserver){
@@ -210,6 +215,10 @@ function init(){const p=window.QA?.profile||{};if(['user','department_admin'].in
  }
  window.addEventListener('resize',scheduleDashboardFit);
  if(document.fonts?.ready)document.fonts.ready.then(scheduleDashboardFit);
+ returningView=window.QAReturn?.takeReturn()||null;
+ if(returningView){restoreControls(returningView.state);window.QAReturn?.showMessage(returningView.message);}
+ document.addEventListener('click',event=>{const link=event.target.closest('a[href]');if(!link)return;try{const url=new URL(link.href,location.href);if(url.origin===location.origin&&url.pathname===new URL('vnext-job.html',location.href).pathname)rememberDashboard();}catch{}},true);
+ window.addEventListener('pagehide',rememberDashboard);
  scheduleDashboardFit();
  load()}
 // The same permission-checked RPC used by the detail page supplies assignment statuses.
@@ -294,7 +303,8 @@ async function load(){
           chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
    })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
    const [reviewLoadFailures]=await Promise.all([loadRoleMetadata(all),refreshReadStates()]);
-   page=0;render();
+   if(returningView)restoreList(returningView.state);else page=0;render();
+   if(returningView){const y=Number(returningView.state?.scrollY)||0;requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo({top:Math.max(0,y),behavior:'instant'})));returningView=null;}
    $('feedback').textContent=`รายการรับเข้าและแจ้งออกที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา`+(reviewLoadFailures?' · โหลดสิทธิ์หรือรายละเอียดสถานะบางรายการไม่สำเร็จ โปรดเปิดใบงานตรวจสอบ':'');
  }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
    $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;

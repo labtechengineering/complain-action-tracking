@@ -354,7 +354,7 @@ async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAl
  (responseHost||issueHost).append(el);
  if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();el.append(outside);}
  }
- organizeDetailPanels(issueSheet,issueHost);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,saveDraft:async(a,panel)=>{const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value,due_date:panel.querySelector('.due').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
+ organizeDetailPanels(issueSheet,issueHost);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value,due_date:panel.querySelector('.due').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';$('assignments').replaceChildren();detailState('error');return false;}}
 // Each issue is one collapsed list row. Move bound assignment forms between
 // issue folds so a shared response has exactly one live editor and one version.
@@ -482,6 +482,15 @@ async function resolveUnrelatedReceiver(a,root,button){
   else setNote('เปลี่ยนฝ่ายรับเรื่องแล้ว');
  }catch(e){setNote('เปลี่ยนฝ่ายรับเรื่องไม่สำเร็จ: '+e.message,true);button.disabled=false;}
 }
+let returnWarning='';
+async function returnHome(action){
+ returnWarning='';
+ if(!window.QAReturn?.isTerminal(action))return false;
+ if(responseDrafts.size||[...responseQueues.values()].some(queue=>queue.length)){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีข้อมูลหรือไฟล์ของงานส่วนอื่นที่ยังไม่ได้บันทึก จึงคงหน้านี้ไว้');return false;}
+ try{if(JSON.parse(sessionStorage.getItem('qa-full-edit-lines:'+jobId)||'[]').length){setNote(returnWarning='ทำรายการสำเร็จแล้ว แต่ยังมีการแจ้ง LINE ที่ค้าง กรุณากดส่งซ้ำก่อนออกจากหน้านี้',true);return false;}}catch{}
+ if(!await QAWork.flushAll()){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ จึงคงหน้านี้ไว้',true);return false;}
+ return QAReturn.home(action);
+}
 const pendingAssignmentActions=new Set();
 async function act(a,action,el){
  if(pendingAssignmentActions.has(a.assignment_id))return;
@@ -516,9 +525,10 @@ async function act(a,action,el){
  if(['REQUESTER_PASS','REQUESTER_FAIL'].includes(action))result=await rpc('qa_workflow_review_v1',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_comment:data.reason||''});
  else if(action!=='SAVE_DRAFT')result=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:action,p_expected_version:expected,p_data:['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?{}:data});
  if(el.dataset.queueKey){responseDrafts.delete(el.dataset.queueKey);responseQueues.delete(el.dataset.queueKey);}
- setNote(action==='REOPEN_RESPONSE'?'เปิดแก้ไขแล้ว — แก้ข้อมูลและส่งตรวจใหม่':action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render({assignmentId:a.assignment_id,action});
+ if(await returnHome(action))return;
+ if(!returnWarning)setNote(action==='REOPEN_RESPONSE'?'เปิดแก้ไขแล้ว — แก้ข้อมูลและส่งตรวจใหม่':action==='SAVE_DRAFT'?(QAWorkflow.permissions(QA.profile,detail,a).canHeadSend?'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งงาน':'บันทึกแบบร่างแล้ว — ยังไม่ได้ส่งหัวหน้าตรวจสอบ'):['REQUEST_APPROVAL','HEAD_SEND'].includes(action)?'ส่งงานสำเร็จ':'บันทึกสำเร็จ');await render({assignmentId:a.assignment_id,action});
  }catch(e){
-  if(String(e.message||e).includes('VERSION_CONFLICT')){setNote('ข้อมูลใบงานถูกอัปเดตระหว่างเปิดหน้านี้ กำลังโหลดข้อมูลล่าสุด กรุณาตรวจสอบก่อนกดส่งงานอีกครั้ง',true);await render({assignmentId:a.assignment_id});}
+  if(String(e.message||e).includes('VERSION_CONFLICT')){setNote('ข้อมูลใบงานถูกอัปเดตระหว่างเปิดหน้านี้ ยังไม่ได้ส่งงาน ข้อความที่กรอกยังอยู่ กรุณาคัดลอกไว้ก่อนเปิดข้อมูลล่าสุดแล้วส่งใหม่',true);}
   else{const state=el.querySelector('.response-draft-state');if(state&&['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){state.textContent='บันทึก/ส่งงานยังไม่ครบ — ตรวจข้อความแจ้งข้อผิดพลาดแล้วกดอีกครั้ง ยังไม่ได้ส่ง';state.dataset.state='unsaved';}setNote('ไม่สามารถบันทึกได้: '+e.message,true);}
  }finally{el.inert=false;pendingAssignmentActions.delete(a.assignment_id);buttons.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy');if(b.dataset.originalText)b.textContent=b.dataset.originalText;});}
 }
