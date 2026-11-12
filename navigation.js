@@ -13,10 +13,7 @@ function buildAppNavHtml_(baseUrl,activePage){
   const icon=key=>'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+iconPaths[key]+'</svg>';
   const links=[];
   const add=(page,label,icon,show=true)=>{if(!show)return;links.push('<a class="qa-side-link '+(activePage===page?'active':'')+'" href="'+htmlEscapeServer_(QA.pageUrl(page))+'"><span class="qa-side-icon" aria-hidden="true">'+icon+'</span><span>'+label+'</span></a>');};
-  const departmentView=activePage==='dashboard'&&new URLSearchParams(location.search).get('view')==='department';
-  if(departmentView)activePage='department-view';
   add('dashboard','หน้าแรก',icon('dashboard'));
-  if(['user','department_admin','system_admin'].includes(role))links.push('<a class="qa-side-link '+(departmentView?'active':'')+'" href="'+htmlEscapeServer_(QA.pageUrl('dashboard',{view:'department'}))+'"><span class="qa-side-icon" aria-hidden="true">'+icon('dashboard')+'</span><span>'+(isSystem?'ภาพรวมแผนก':'แผนกของฉัน')+'</span></a>');
   add('create','แจ้งงาน',icon('create'),role==='user'||role==='department_admin'||isSystem);
   add('customer','ข้อมูลลูกค้า',icon('customer'));
   add('profile','Profile',icon('profile'));

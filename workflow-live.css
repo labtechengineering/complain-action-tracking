@@ -19,3 +19,23 @@
 #captureArea .department-panel .response-field-card::before{display:none!important}
 #captureArea .department-panel .live-answer-main{padding:14px 16px!important}
 #captureArea .department-panel .live-answer-main textarea{min-height:90px}
+
+/* Approved paper-like layout: no redundant nested operation frames. */
+#captureArea [hidden]{display:none!important}
+#captureArea .issue-operations-title,#captureArea .admin-issue-reference{display:none!important}
+#captureArea .issue-operation-group,#captureArea .admin-department-frame,#captureArea .department-panel.sheet,#captureArea .unaccepted-actions{border:0!important;box-shadow:none!important;background:transparent!important;border-radius:0!important;padding:0!important;margin:0!important}
+#captureArea .live-source-attachments>.issue-card{border:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:12px 0 0!important}
+#captureArea .live-source-attachments .media{margin-top:9px}
+#captureArea .live-source{margin:0!important;border-radius:9px 9px 0 0}
+#captureArea .response-fields-grid{margin-top:0!important;gap:0!important}
+#captureArea .response-fields-grid>.live-answer-row{margin:0;border-radius:0;border-top:0}
+#captureArea .response-fields-grid>.live-answer-row[data-field="prevent"]{border-radius:0 0 9px 9px}
+#captureArea .live-note-heading{justify-content:flex-end}
+#captureArea .live-qa-note .live-note-heading{justify-content:space-between}
+#captureArea .live-response-footer{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;margin:0 0 10px;padding:15px 2px 4px;font-size:13px}
+#captureArea .live-response-footer>.response-responsible{margin:0;font-size:13px;line-height:1.7;min-width:0;max-width:100%;overflow-wrap:anywhere}
+#captureArea .live-response-footer>.response-due-row{display:block;flex:0 1 auto;min-width:0;margin:0}
+#captureArea .live-response-footer .response-due-row label{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;margin:0;font-weight:400;font-size:13px}
+#captureArea .live-response-footer .due{box-sizing:border-box;width:160px;min-width:0;max-width:100%;margin:0;padding:6px 9px;font-size:16px}
+#captureArea .live-due-readonly{font-weight:400}
+@media(max-width:680px){#captureArea .live-response-footer{justify-content:flex-start;align-items:flex-start;gap:10px 20px}#captureArea .live-response-footer .due{max-width:100%}}

@@ -181,8 +181,8 @@ function guideDetail(context={}){
  const panel=group?.querySelector('.department-panel');
  const returnResult=panel?.querySelector('.requester-return-result');
  const handoffResult=context.action==='ACCEPT'&&q.system&&QAWorkflow.awaitingDepartmentWork(assignment);
- const target=handoffResult?(source?.querySelector('.system-accept-note')||source):returnResult|| (unrelated?source?.querySelector('.unrelated-routing')||group?.querySelector('.unrelated-routing'):
-   q.canAccept?source?.querySelector('.unaccepted-actions'):context.action==='SAVE_DRAFT'?panel?.querySelector('.department-action-bar')||panel:panel||group||source);
+ const target=handoffResult?(group?.querySelector('.system-accept-note')||source?.querySelector('.system-accept-note')||group||source):returnResult|| (unrelated?source?.querySelector('.unrelated-routing')||group?.querySelector('.unrelated-routing'):
+   q.canAccept?(group?.querySelector('.unaccepted-actions')||source?.querySelector('.unaccepted-actions')):context.action==='SAVE_DRAFT'?panel?.querySelector('.department-action-bar')||panel:panel||group||source);
  if(!target)return;
  document.querySelectorAll('.workflow-focus').forEach(n=>{n.classList.remove('workflow-focus');n.querySelector(':scope > .workflow-focus-hint')?.remove();});
  target.classList.add('workflow-focus');target.dataset.assignment=assignment.assignment_id;target.tabIndex=-1;
@@ -332,8 +332,8 @@ async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAl
  const sharedResponse=(a.issues||[]).length>1;
  el.innerHTML=`<h3 class="response-title">การดำเนินงาน — ${esc(a.department_code)} · ปัญหา ${esc(issueNumbers)} <span class="badge">${esc(label(a.status))}</span></h3>${sharedResponse&&showResponse?'<p class="shared-response-note">คำตอบรวมของแผนกสำหรับปัญหา '+esc(issueNumbers)+' · คำตอบนี้ใช้ร่วมกันทุกข้อที่ระบุ</p>':''}
  ${systemAcceptHtml}
- ${showResponse?(hideEmptyRework?`${earlier}${oldDataNotice}<p class="requester-return-result" role="status"><strong>ตรวจสอบไม่ผ่าน — ส่งกลับแก้ไข</strong><span>${esc(rejectedReason||'รอแผนกดำเนินการแก้ไข')}</span></p><div class="no-print actions"></div>`:`${earlier}${oldDataNotice}${priorRounds.length?'<h3>รายละเอียดการแก้ไขครั้งที่ '+roundNumber+'</h3>':''}${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p><b>ผู้รับผิดชอบหลัก:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
- <div class="row"><label>วันกำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!canEditCurrent?'disabled':''}></label></div>
+ ${showResponse?(hideEmptyRework?`${earlier}${oldDataNotice}<p class="requester-return-result" role="status"><strong>ตรวจสอบไม่ผ่าน — ส่งกลับแก้ไข</strong><span>${esc(rejectedReason||'รอแผนกดำเนินการแก้ไข')}</span></p><div class="no-print actions"></div>`:`${earlier}${oldDataNotice}${priorRounds.length?'<h3>รายละเอียดการแก้ไขครั้งที่ '+roundNumber+'</h3>':''}${afterRejection?'<p class="rework-reminder">↩ ส่งกลับแก้ไข — กรุณากรอกข้อมูลการแก้ไขรอบใหม่ บันทึกครั้งก่อนอ่านได้อย่างเดียว</p>':''}<p class="response-responsible"><b>ผู้รับผิดชอบ:</b> ${esc(a.responsible_name||a.responsible_user||'ยังไม่รับงาน')}</p>
+ <div class="row response-due-row"><label>กำหนดเสร็จ<input class="due" type="date" value="${esc(a.due_date||'')}" ${!canEditCurrent?'disabled':''}></label></div>
  <div class="response-fields-grid"><label class="field response-field-card" data-field-step="1">รายละเอียดปัญหา/ข้อบกพร่อง<textarea class="recv" ${!canEditCurrent?'disabled':''}>${esc(a.receiver_problem_detail||'')}</textarea></label>
  <label class="field response-field-card" data-field-step="2">วิเคราะห์สาเหตุ<textarea class="analysis" ${!canEditCurrent?'disabled':''}>${esc(a.problem_analysis||'')}</textarea></label>
  <label class="field response-field-card" data-field-step="3">การแก้ปัญหา<textarea class="fix" ${!canEditCurrent?'disabled':''}>${esc(a.corrective_action||'')}</textarea></label>
@@ -402,16 +402,16 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const original of [...issueHost.querySelectorAll('.issue-department-group')]){
   const a=assignments.find(x=>String(x.assignment_id)===original.dataset.assignment);if(!a)continue;
   const panel=original.querySelector('.department-panel');if(panel)panel.remove();
-  for(const card of [...original.querySelectorAll('.issue-card')]){for(const p of card.querySelectorAll(':scope>p:not(.muted)'))p.remove();if(compactAdmin){card.dataset.referenceCode=card.querySelector('.issue-code')?.textContent||'';card.classList.add('admin-source-card');for(const n of [...card.children])if(n.matches('h3,p:not(.muted)'))n.remove();}
+  for(const card of [...original.querySelectorAll('.issue-card')]){card.querySelector(':scope>h3')?.remove();for(const p of card.querySelectorAll(':scope>p:not(.muted)'))p.remove();if(compactAdmin){card.dataset.referenceCode=card.querySelector('.issue-code')?.textContent||'';card.classList.add('admin-source-card');for(const n of [...card.children])if(n.matches('h3,p:not(.muted)'))n.remove();}
    sourceCards.set(String(a.assignment_id)+':'+card.dataset.issueId,card);cardBank.append(card);}
   const group=document.createElement('section');group.className='issue-department-group issue-operation-group'+(compactAdmin?' admin-operation-group':'');group.id=original.id;group.dataset.assignment=a.assignment_id;group.dataset.departmentCode=a.department_code;
   group.innerHTML='<div class="operation-department-heading"><strong>'+esc(a.department_code)+'</strong>'+badge(a)+'</div>';
   const accepted=!QAWorkflow.awaitingDepartmentWork(a)&&(Boolean(a.accepted_at||a.responsible_user)||['IN_PROGRESS','WAITING_REVIEW','CLOSED'].includes(a.status)),q=QAWorkflow.permissions(QA.profile,detail,a);
-  const sources=document.createElement(accepted?'details':'div');sources.className='received-issues';sources.dataset.filterAssignment=String(a.assignment_id);sources.innerHTML=(accepted?'<summary>'+ (compactAdmin?'ไฟล์จากผู้แจ้ง':'ข้อมูลปัญหาและไฟล์จากผู้แจ้ง') +'</summary>':(compactAdmin?'':'<h3>ข้อมูลปัญหาและไฟล์จากผู้แจ้ง</h3>'))+'<div class="source-issue-holder"></div>';
+  const sources=document.createElement('div');sources.hidden=true;sources.className='received-issues';sources.dataset.filterAssignment=String(a.assignment_id);sources.innerHTML='<div class="source-issue-holder"></div>';
   if(!accepted){
    const dept=document.createElement('strong');dept.className='source-department-label';dept.textContent=a.department_code;group._sourceDepartmentLabel=dept;group.append(sources);
-   if(panel){panel.querySelector('.response-title')?.remove();panel.querySelectorAll('.operation-waiting').forEach(n=>n.remove());panel.className='unaccepted-actions';if(panel.querySelector('button,.system-accept-note'))sources.append(panel);}
-  }else if(panel){panel.querySelector('.response-title')?.remove();if(q.own||q.system)panel.prepend(sources);else group.append(sources);group.append(panel);}else group.append(sources);
+   if(panel){panel.querySelector('.response-title')?.remove();panel.querySelectorAll('.operation-waiting').forEach(n=>n.remove());panel.className='unaccepted-actions';if(panel.querySelector('button,.system-accept-note'))group.append(panel);}
+  }else if(panel){panel.querySelector('.response-title')?.remove();group.append(sources,panel);}else group.append(sources);
   group._sourceDisclosure=sources;group._sourceParent=sources.parentElement;group._accepted=accepted;
   groups.set(String(a.assignment_id),group);panelBank.append(group);
  }
@@ -421,19 +421,21 @@ function organizeDetailPanels(issueSheet,issueHost){
  for(const {issue:i,assignments:related} of [...issues.values()].sort((a,b)=>Number(a.issue.issue_number)-Number(b.issue.issue_number))){
   const fold=document.createElement('details');fold.className='issue-disclosure'+(compactAdmin?' admin-compact-issue':'');fold.dataset.issueId=String(i.issue_id);fold.dataset.assignmentIds=related.map(a=>String(a.assignment_id)).join(',');
   fold.innerHTML='<summary aria-label="ปัญหา '+esc(i.issue_number)+': '+esc(i.description)+'"><span class="issue-row-number">'+esc(i.issue_number)+'.</span><span class="issue-row-description" title="'+esc(i.description)+'">'+esc(categoryName(i.category_code,i.category_other||''))+'</span><span class="issue-row-departments">'+related.map(a=>'<span class="issue-department-state" data-filter-assignment="'+esc(a.assignment_id)+'"><span class="issue-responsible-department">'+esc(a.department_code)+'</span>'+badge(a)+'</span>').join('')+'</span><span class="issue-row-chevron" aria-hidden="true"></span></summary>';
-  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML=(compactAdmin?'<p class="admin-issue-reference">'+esc(sourceCards.get(String(related[0].assignment_id)+':'+String(i.issue_id))?.dataset.referenceCode||'')+' · '+esc(categoryName(i.category_code,i.category_other||''))+'</p>':'')+'<div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden>การดำเนินงาน</h3><div class="issue-operation-host" hidden></div>';fold.append(body);
+  const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML='<div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden></h3><div class="issue-operation-host" hidden></div>';fold.append(body);
   const mount=()=>{
    if(activeIssue===fold)return;
    for(const other of folds)if(other!==fold)other.open=false;
+   for(const files of issueSheet.querySelectorAll('.live-source-attachments')){for(const card of [...files.querySelectorAll(':scope>.issue-card')])cardBank.append(card);files.hidden=true;}
    // Return the previous issue's controls to storage before attaching this issue.
    for(const group of groups.values()){
     for(const card of [...group._sourceDisclosure.querySelectorAll('.source-issue-holder > .issue-card')])cardBank.append(card);
     const sources=group._sourceDisclosure;group._sourceParent.prepend(sources);if(sources?.tagName==='DETAILS')sources.open=false;panelBank.append(group);
    }
    const host=body.querySelector('.issue-operation-host');
-   for(const a of related){const group=groups.get(String(a.assignment_id));if(!group)continue;const card=sourceCards.get(String(a.assignment_id)+':'+String(i.issue_id));if(card){if(compactAdmin){const duplicate=related.indexOf(a)>0;for(const n of card.children)if(n.matches('b,.media,.muted'))n.hidden=duplicate;group._sourceDisclosure.hidden=duplicate&&group._accepted;group.querySelector('.operation-department-heading').hidden=related.length===1;card.classList.toggle('admin-duplicate-source',duplicate);}
-   if(!group._accepted&&group._sourceDepartmentLabel&&!compactAdmin)card.prepend(group._sourceDepartmentLabel);group._sourceDisclosure.querySelector('.source-issue-holder').append(card);}group.classList.toggle('admin-department-frame',compactAdmin&&related.length>1);if(compactAdmin&&related.length>1){body.querySelector('.admin-department-list').append(group);}else if(!group._accepted)body.querySelector('.issue-source-before-work').append(group._sourceDisclosure);else host.append(group);}
-   const hasOperations=host.children.length>0;host.hidden=!hasOperations;body.querySelector('.issue-operations-title').hidden=!hasOperations;
+   for(const a of related){const group=groups.get(String(a.assignment_id));if(!group)continue;const card=sourceCards.get(String(a.assignment_id)+':'+String(i.issue_id));if(card){if(compactAdmin){const duplicate=related.indexOf(a)>0;for(const n of card.children)if(n.matches('b,.media,.muted'))n.hidden=duplicate;group._sourceDisclosure.hidden=true;group.querySelector('.operation-department-heading').hidden=related.length===1;card.classList.toggle('admin-duplicate-source',duplicate);}
+   group._sourceDisclosure.querySelector('.source-issue-holder').append(card);}group.classList.toggle('admin-department-frame',compactAdmin&&related.length>1);if(compactAdmin&&related.length>1){body.querySelector('.admin-department-list').append(group);}else if(!group._accepted)body.querySelector('.issue-source-before-work').append(group);else host.append(group);}
+   const files=body.querySelector('.live-source-attachments');const first=related.length?sourceCards.get(String(related[0].assignment_id)+':'+String(i.issue_id)):null;if(files&&first&&first.querySelector('.media,.issueFiles,.issue-reassign')){files.append(first);files.hidden=false;}for(const a of related){const group=groups.get(String(a.assignment_id));if(group){group._sourceDisclosure.hidden=true;group.classList.toggle('live-single-department',related.length===1);group.querySelector('.operation-department-heading').hidden=related.length===1;}}
+   const hasOperations=host.children.length>0;host.hidden=!hasOperations;body.querySelector('.issue-operations-title').hidden=true;
    activeIssue=fold;
   };
   fold._openIssue=()=>{mount();fold.open=true;};
