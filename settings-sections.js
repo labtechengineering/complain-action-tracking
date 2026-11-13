@@ -41,6 +41,7 @@
       fold.append(summary, body);
       section.append(fold);
     }
+    if(section.dataset.openByDefault==='true')fold.open=true;
     fold.classList.add('settings-section');
   }
 

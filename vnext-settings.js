@@ -7,8 +7,9 @@ async function load(){const box=$('vnReceivers');if(!box||QA.profile?.role!=='sy
  const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!d.enabled;cb.style.width='18px';
  cb.onchange=async()=>{cb.disabled=true;saved.textContent='กำลังบันทึก...';try{await rpc('qa_vnext_set_receiver',{p_code:d.code,p_enabled:cb.checked});saved.textContent='บันทึกแล้ว';}catch(e){cb.checked=!cb.checked;saved.textContent='บันทึกไม่สำเร็จ';alert(e.message);}finally{cb.disabled=false;}};
  el.append(cb,document.createTextNode(d.code+' — '+d.name),saved);box.append(el);}
- if(!rows.length)box.textContent='เพิ่มแผนกที่ Master Data ก่อน';
+ if(!rows.length)box.textContent='เพิ่มแผนกที่หัวข้อจัดการแผนกก่อน';
  }catch(e){box.textContent='โหลดฝ่ายรับเรื่องไม่สำเร็จ: '+e.message;}}
  async function boot(){for(let i=0;i<160&&!QA.profile;i++)await new Promise(r=>setTimeout(r,100));await load();}
+ window.addEventListener('qa:departments-changed',load);
  boot();
 })();

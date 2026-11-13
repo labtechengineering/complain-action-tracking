@@ -14,7 +14,7 @@ if(original)window.renderMaster=function(rows){const host=document.getElementByI
  };tr.lastElementChild.append(button);}
 };
 async function init(){await QA.whenReady();if(QA.profile.role!=='system_admin')return;
- const section=document.createElement('section');section.className='card';section.id='otherCategoryHistory';const fold=document.createElement('details'),summary=document.createElement('summary');summary.style.cssText='cursor:pointer;font-weight:700;font-size:18px';summary.textContent='ประเภทปัญหาอื่นๆ ที่ระบุ';const body=document.createElement('div');body.style.marginTop='14px';fold.append(summary,body);section.append(fold);document.querySelector('main').append(section);
+ const section=document.createElement('section');section.className='card';section.id='otherCategoryHistory';const fold=document.createElement('details'),summary=document.createElement('summary');summary.style.cssText='cursor:pointer;font-weight:700;font-size:18px';summary.textContent='ประเภทปัญหาอื่นๆ ที่ระบุ';const body=document.createElement('div');body.style.marginTop='14px';fold.append(summary,body);section.append(fold);const main=document.querySelector('main');main.insertBefore(section,main.querySelector(':scope > [data-qa-version]'));
  const {data,error}=await QA.client.rpc('qa_admin_other_category_history');if(error){body.textContent='โหลดประวัติไม่สำเร็จ กรุณารีเฟรชเพื่อลองอีกครั้ง';return;}
  const rows=Array.isArray(data)?data:[];summary.textContent='ประเภทปัญหาอื่นๆ ที่ระบุ ('+rows.length+')';
  if(!rows.length){body.textContent='ยังไม่มีรายการที่ระบุ';return;}

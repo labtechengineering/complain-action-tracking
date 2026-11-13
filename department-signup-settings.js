@@ -8,7 +8,7 @@
   function describe(enabled) {
     return enabled
       ? 'เปิดอยู่ — เพิ่มแผนกแล้วสมัครสมาชิกต่อได้ทันที ไม่ต้องรออนุมัติ'
-      : 'ปิดอยู่ — ผู้สมัครเลือกได้เฉพาะแผนกที่มีอยู่ ผู้ดูแลยังเพิ่มแผนกผ่าน Master Data ได้';
+      : 'ปิดอยู่ — ผู้สมัครเลือกได้เฉพาะแผนกที่มีอยู่ ผู้ดูแลยังเพิ่มแผนกผ่านหัวข้อจัดการแผนกได้';
   }
   async function boot() {
     const toggle = document.getElementById('allowDepartmentCreation');
