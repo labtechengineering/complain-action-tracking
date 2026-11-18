@@ -7,9 +7,10 @@ function read(){try{const k=key(),v=k&&JSON.parse(sessionStorage.getItem(k)||'nu
 function write(value){try{const k=key();if(k)sessionStorage.setItem(k,JSON.stringify(value));}catch{}}
 function dashboardUrl(raw){try{const url=new URL(raw,location.href);if(url.origin===location.origin&&url.pathname===new URL('dashboard.html',location.href).pathname)return url.href;}catch{}return new URL('dashboard.html',location.href).href;}
 function saveDashboard(state){write({at:Date.now(),url:dashboardUrl(location.href),state});}
+function readDashboard(){return read()?.state||null;}
 function isTerminal(action){return Object.prototype.hasOwnProperty.call(messages,action);}
 function home(action){if(!isTerminal(action))return false;const previous=read();write({...previous,at:Date.now(),pending:true,action});location.assign(dashboardUrl(previous?.url));return true;}
 function takeReturn(){const previous=read();if(!previous?.pending||!isTerminal(previous.action))return null;write({...previous,pending:false});return {state:previous.state||null,message:messages[previous.action]};}
 function showMessage(message){if(!message)return;let node=document.getElementById('qaActionResult');if(!node){node=document.createElement('p');node.id='qaActionResult';node.setAttribute('role','status');node.style.cssText='margin:0 0 12px;padding:10px 14px;border:1px solid #c6e7d6;border-radius:10px;background:#effaf3;color:#14603a;font-size:14px';(document.querySelector('main.main')||document.querySelector('main')||document.body).prepend(node);}node.textContent=message;}
-window.QAReturn={saveDashboard,isTerminal,home,takeReturn,showMessage};
+window.QAReturn={saveDashboard,readDashboard,isTerminal,home,takeReturn,showMessage};
 })();

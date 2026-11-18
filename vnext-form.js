@@ -14,6 +14,7 @@
  .vn-row{display:flex;gap:12px;flex-wrap:wrap}.vn-row>*{flex:1;min-width:180px}
  .vn-checks{display:flex;flex-wrap:wrap;gap:9px}.vn-checks label{border:1px solid #dae1ea;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;font-weight:400}
  .vn-checks input{width:auto}.vn-card textarea{min-height:82px}.vn-btn{border:1px solid #bdcad6;border-radius:8px;padding:10px 13px;cursor:pointer;background:#f1f5f9}
+ .vn-request-due{display:block;max-width:230px;min-width:0;margin-top:12px}.vn-request-due input{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;font-size:16px}
  .vn-files{font-size:12px;color:#526276}.vn-note{font-size:13px;color:#5b6675}
  .vn-intake-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:stretch;margin-top:20px}
  .vn-intake-left{display:grid;gap:16px;align-content:start;min-width:0}
@@ -65,6 +66,13 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
+ const dueLabel=document.createElement('label');
+ dueLabel.className='vn-request-due';
+ dueLabel.textContent='วันกำหนดเสร็จ *';
+ const dueInput=document.createElement('input');
+ dueInput.id='vnRequestDue';dueInput.type='date';dueInput.required=true;
+ dueLabel.append(dueInput);
+
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
  const buttons=document.createElement('div');buttons.className='vn-source-buttons';
@@ -78,7 +86,7 @@
  const left=document.createElement('div');left.className='vn-intake-left';
  const serialField=$('serialNo').closest('.field');const oldGrid=serialField.closest('.grid');
  left.append(serialField,$('vnCustomer').closest('label'),$('vnCountry').closest('label'));
- remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake);
+ remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake,dueLabel);
  vnHeader.style.display='none';if(oldGrid)oldGrid.style.display='none';
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
@@ -125,12 +133,12 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ function collect(){save();if(!dueInput.value)throw new Error('กรุณาเลือกวันกำหนดเสร็จ');if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
  const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
  if(isOtherCategory(p.category)&&!String(p.other||'').trim())throw new Error(`ปัญหา ${i+1}: กรุณาระบุประเภทปัญหาอื่นๆ`);
  return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
- customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
+ customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value,requestDueDate:dueInput.value};
  if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';
  return {issues,header};}
  async function uploadMedia(jobId){for(let n=0;n<problems.length;n++){
