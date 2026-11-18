@@ -50,7 +50,7 @@
  .vn-card > .vn-file-grid{margin:12px 0 2px}
  .vn-card .vn-file-item textarea{margin-top:7px}
  `;document.head.append(style);
- function create(){return {id:++seq,images:[],video:[],notes:{},category:'',other:'',description:'',departments:[]};}
+ function create(){return {id:++seq,images:[],video:[],notes:{},category:'',other:'',description:'',requestDueDate:'',departments:[]};}
  problems.push(create());
  const oldProblem=$('problemDetail')?.closest('.card');if(!oldProblem)return;
  const panel=document.createElement('section');panel.className='card';panel.id='vnPanel';
@@ -66,12 +66,6 @@
  }
  const top=$('serialNo')?.closest('.card');const vnHeader=$('vnHeader');if(top&&vnHeader)top.append(vnHeader);
  const remark=$('vnRemark')?.closest('label');if(top&&remark)top.append(remark);
- const dueLabel=document.createElement('label');
- dueLabel.className='vn-request-due';
- dueLabel.textContent='วันกำหนดเสร็จ *';
- const dueInput=document.createElement('input');
- dueInput.id='vnRequestDue';dueInput.type='date';dueInput.required=true;
- dueLabel.append(dueInput);
 
  const source=$('vnSource');source.value='';source.selectedIndex=0;source.parentElement.style.display='none';
  const chooser=document.createElement('div');chooser.className='vn-source-choice';chooser.innerHTML='<h3>เลือกประเภทงาน *</h3>';
@@ -86,7 +80,7 @@
  const left=document.createElement('div');left.className='vn-intake-left';
  const serialField=$('serialNo').closest('.field');const oldGrid=serialField.closest('.grid');
  left.append(serialField,$('vnCustomer').closest('label'),$('vnCountry').closest('label'));
- remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake,dueLabel);
+ remark.classList.add('vn-intake-remark');intake.append(left,remark);top.append(intake);
  vnHeader.style.display='none';if(oldGrid)oldGrid.style.display='none';
  $('toDepartment').closest('.field').style.display='none';$('toDepartment').required=false;
  $('category').required=false;$('problemDetail').required=false;
@@ -96,7 +90,7 @@
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
- function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
+ function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
  function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
   const opt=[...$('category').options].filter(x=>x.value).map(x=>`<option value="${esc(x.value)}">${esc(x.textContent)}</option>`).join('');
@@ -104,10 +98,11 @@
   <label>ประเภทปัญหา *<select class="vn-category" required><option value="">-- เลือก Category --</option>${opt}</select></label>
   <label class="vn-other-label" hidden>ระบุประเภทปัญหา *<input class="vn-other-detail" type="text" maxlength="120" placeholder="ระบุสั้นๆ เช่น ปัญหางานเอกสาร"></label>
   <label>รายละเอียดปัญหา *<textarea class="vn-detail" maxlength="20000" required></textarea></label>
+  <label class="vn-request-due">วันกำหนดเสร็จ *<input type="date" required></label>
   <strong>ฝ่ายรับเรื่อง * (เลือกได้มากกว่า 1)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
   <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="image/jpeg,image/png,image/webp" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
   <p class="vn-files"></p><div class="vn-file-grid"></div>`;
-  box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;
+  box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;box.querySelector('.vn-request-due input').value=p.requestDueDate;
   const category=box.querySelector('.vn-category'),other=box.querySelector('.vn-other-detail'),otherLabel=box.querySelector('.vn-other-label');
   other.value=p.other||'';
   const syncOther=()=>{const show=isOtherCategory(category.value);otherLabel.hidden=!show;other.required=show;if(!show){other.value='';p.other='';}};
@@ -133,12 +128,14 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(!dueInput.value)throw new Error('กรุณาเลือกวันกำหนดเสร็จ');if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
- const issues=problems.map((p,i)=>{if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
+ function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ const issues=problems.map((p,i)=>{
+ if(!p.requestDueDate)throw new Error(`ปัญหา ${i+1}: กรุณาเลือกวันกำหนดเสร็จ`);
+ if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
  if(isOtherCategory(p.category)&&!String(p.other||'').trim())throw new Error(`ปัญหา ${i+1}: กรุณาระบุประเภทปัญหาอื่นๆ`);
- return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),departments:p.departments};});
+ return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),request_due_date:p.requestDueDate,departments:p.departments};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
- customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value,requestDueDate:dueInput.value};
+ customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
  if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';
  return {issues,header};}
  async function uploadMedia(jobId){for(let n=0;n<problems.length;n++){
@@ -184,7 +181,7 @@
   const infoField=(name,value)=>'<div style="display:grid;grid-template-columns:134px minmax(0,1fr);column-gap:10px;align-items:start;line-height:1.6;overflow-wrap:anywhere"><b>'+name+'</b><span style="white-space:pre-wrap">'+esc(value||'-')+'</span></div>';
   hdr.innerHTML='<b style="display:block;font-size:20px;margin:0 0 16px">1. ข้อมูลการแจ้งเรื่อง</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:11px 22px">'+infoField('ประเภท:', $('vnSource').value)+infoField('Serial:', $('serialNo').value)+infoField('Customer:', $('vnCustomer').value)+infoField('Country:', $('vnCountry').value)+'</div><div style="margin-top:12px">'+infoField('Remark:', $('vnRemark').value)+'</div>';host.append(hdr);
   for(const {p,i} of matching){const block=document.createElement('section');block.style.cssText='padding:20px 22px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:22px;page-break-inside:avoid';
-   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category,p.other||''))+infoField('ฝ่ายผู้แจ้ง:',QA.profile?.role==='system_admin'?'System Admin':(String(QA.profile?.department||'').trim()||'-'))+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
+   block.innerHTML='<b style="display:block;font-size:20px;margin-bottom:16px">2. รายละเอียดปัญหา '+(i+1)+'</b><div style="display:grid;gap:11px;margin-bottom:14px">'+infoField('Category:',categoryDisplayName(p.category,p.other||''))+infoField('ฝ่ายผู้แจ้ง:',QA.profile?.role==='system_admin'?'System Admin':(String(QA.profile?.department||'').trim()||'-'))+infoField('ฝ่ายรับเรื่อง:',p.departments.join(', '))+infoField('วันกำหนดเสร็จ:',p.requestDueDate)+'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:15px 0">'+esc(p.description)+'</div>';
    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
    for(const [fileIndex,f] of p.images.entries()){
     const item=document.createElement('div');item.style.cssText='width:170px;max-width:170px;break-inside:avoid;overflow-wrap:anywhere';
