@@ -71,13 +71,15 @@ SOFTWARE.
    return {name:sh.getAttribute('name'),rows};
   }).filter(Boolean);
  }
- function getHeaders(sheet){
+ const serialHeaders=['internalsn','customer','custmrname','country','name'];
+ const workHeaders=['u_p1salesnote','cardcode','cardname','code','name'];
+ function findHeaders(sheet,names){
   for(let i=0;i<Math.min(sheet.rows.length,10);i++){
    const header=sheet.rows[i].cells.map(c=>text(c?.value).toLowerCase());
-   const names=['internalsn','customer','custmrname','country','name'];
    if(names.every(n=>header.includes(n))){if(names.some(n=>header.filter(h=>h===n).length!==1))throw Error('หัวคอลัมน์ซ้ำในชีต '+sheet.name);return {index:i,columns:Object.fromEntries(names.map(n=>[n,header.indexOf(n)]))};}
   }return null;
  }
+ function getHeaders(sheet){return findHeaders(sheet,serialHeaders);}
  function prepare(sheet,snapshot){
   const header=getHeaders(sheet);if(!header)throw Error('ต้องมีคอลัมน์ internalSN, customer, custmrName, country และ Name');
   const remembered=new Map((snapshot.overrides||[]).map(o=>[nameKey(o.customer_code,o.source_customer),o.customer_name]));
@@ -93,13 +95,60 @@ SOFTWARE.
    const split=splitName(raw,country),saved=remembered.get(nameKey(code,raw));
    const otherCountry=countries.find(c=>c.toLowerCase()!==country.toLowerCase()&&splitName(raw,c).split);
    const needsReview=!country||!!otherCountry;
-   records.push({row:source.number,serial_no:serial,customer_code:code,source_customer:raw,customer_name:saved||split.name,country_code:countryCode,country_name:country,
+   records.push({row:source.number,...(source.sheetName?{sheetName:source.sheetName}:{}),serial_no:serial,customer_code:code,source_customer:raw,customer_name:saved||split.name,country_code:countryCode,country_name:country,
     remember_name:false,reviewed:!needsReview,needsReview,reason:saved?'ใช้ชื่อที่เคยแก้ไว้':otherCountry?'ประเทศท้ายชื่อไม่ตรงกับคอลัมน์ประเทศ':!country?'ไม่พบประเทศ กรุณาตรวจ หรือยืนยันเว้นว่าง':split.split?'แยกประเทศท้ายชื่อแล้ว':'คงชื่อต้นฉบับ'});
   }
   const grouped=new Map();for(const r of records){const k=nameKey(r.customer_code,r.source_customer);if(!grouped.has(k))grouped.set(k,[]);grouped.get(k).push(r);}for(const group of grouped.values())if(new Set(group.map(r=>r.customer_name)).size>1)for(const r of group){r.customer_name=r.source_customer;r.needsReview=true;r.reviewed=false;r.reason='ชื่อ SAP เดียวกันแต่ข้อมูลประเทศต่างกัน กรุณาตรวจชื่อที่ต้องการใช้';}
   if(errors.length)throw Error(errors.slice(0,12).join('\n')+(errors.length>12?'\nและอีก '+(errors.length-12)+' รายการ':''));
   if(!records.length||records.length>MAX_ROWS)throw Error('จำนวนข้อมูลต้องอยู่ระหว่าง 1–20,000 รายการ');
   return records;
+ }
+ function prepareWorkbook(sheets,snapshot){
+  const primary=[],work=[];
+  for(const sheet of sheets){
+   const standard=getHeaders(sheet);
+   if(standard){primary.push({sheet,header:standard});continue;}
+   const sales=findHeaders(sheet,workHeaders);
+   if(sales)work.push({sheet,header:sales});
+  }
+  const summary={sheetCount:primary.length+work.length,preferred:0,skippedConflicts:0,skippedNotes:0};
+  if(!summary.sheetCount)throw Error('ไม่พบหัวคอลัมน์สำหรับ SerialProfile หรือ WorkSerial');
+  if(primary.length===1&&!work.length)return {rows:prepare(primary[0].sheet,snapshot),summary};
+
+  const normalizedHeader={number:0,cells:serialHeaders.map(value=>({value,numeric:false}))};
+  function inputs({sheet,header},names){
+   return sheet.rows.slice(header.index+1).map(row=>({number:row.number,sheetName:sheet.name,cells:names.map(name=>row.cells[header.columns[name]])}))
+    .filter(row=>row.cells.some(cell=>text(cell?.value)));
+  }
+  const mainRows=primary.flatMap(source=>inputs(source,serialHeaders));
+  const mainBySerial=new Map(mainRows.map(row=>[key(row.cells[0]?.value),row]));
+  const workBySerial=new Map();
+  for(const source of work)for(const row of inputs(source,workHeaders)){
+   const note=key(row.cells[0]?.value);
+   const candidates=new Set([...note.matchAll(/(?:^|[^A-Z0-9-])([A-Z][A-Z0-9]{0,12}-\d{4}-\d{3,6})(?![A-Z0-9-])/g)].map(match=>match[1]));
+   if(candidates.size!==1||!text(row.cells[2]?.value)){summary.skippedNotes++;continue;}
+   const [serial]=candidates;
+   row.cells[0]={value:serial,numeric:false};
+   if(!workBySerial.has(serial))workBySerial.set(serial,[]);
+   workBySerial.get(serial).push(row);
+  }
+  function customerKey(row){
+   const [code,name,countryCode,country]=row.cells.slice(1).map(cell=>text(cell?.value));
+   const cleanName=key(splitName(name,country||countryCode).name).replace(/[^\p{L}\p{N}]/gu,'');
+   return JSON.stringify([key(code),cleanName,key(countryCode||country)]);
+  }
+  const merged=[...mainRows];
+  for(const [serial,rows] of workBySerial){
+   const registered=mainBySerial.get(serial);
+   if(registered){
+    const original=customerKey(registered);
+    if(rows.some(row=>customerKey(row)!==original))summary.preferred++;
+    continue;
+   }
+   if(new Set(rows.map(customerKey)).size>1){summary.skippedConflicts++;continue;}
+   merged.push(rows[0]);
+  }
+  return {rows:prepare({name:'Serial',rows:[normalizedHeader,...merged]},snapshot),summary};
  }
  function issues(row){const errors=[];
   if(!row.serial_no||row.serial_no.length>120||/[\u0000-\u001f\u007f]/.test(row.serial_no))errors.push('Serial ไม่ถูกต้อง');
@@ -111,5 +160,5 @@ SOFTWARE.
  function payload(records){return records.map(r=>({serial_no:text(r.serial_no),customer_code:text(r.customer_code),source_customer:text(r.source_customer),customer_name:text(r.customer_name),country_code:text(r.country_code),country_name:text(r.country_name),remember_name:!!r.remember_name}));}
  function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
  function friendly(error){const msg=error?.message||String(error);if(/PGRST202|function .* does not exist|schema cache/i.test(msg)||['PGRST202','42883'].includes(error?.code))return 'ยังไม่ได้ติดตั้งส่วนข้อมูล Serial กรุณารัน SQL 01_SERIAL_DIRECTORY.sql ก่อน';if(msg.includes('IMPORT_VERSION_CONFLICT'))return 'ข้อมูลถูกอัปเดตจากอีกหน้าหนึ่งแล้ว กรุณาเลือกไฟล์ใหม่เพื่อตรวจเทียบข้อมูลล่าสุด';return msg;}
- window.QASerialDirectory=Object.freeze({MAX_ROWS,MAX_FILE,text,key,nameKey,splitName,readXlsx,getHeaders,prepare,issues,payload,uuid,friendly});
+ window.QASerialDirectory=Object.freeze({MAX_ROWS,MAX_FILE,text,key,nameKey,splitName,readXlsx,getHeaders,prepare,prepareWorkbook,issues,payload,uuid,friendly});
 })();
