@@ -193,7 +193,7 @@
     if(!clientKey || clientKey.includes('REPLACE') || clientKey.includes('YOUR_'))
       throw new Error('Supabase public key is missing in config.js. Use publishableKey or supabaseAnonKey.');
     QA.client=window.supabase.createClient(cfg.supabaseUrl,clientKey,{
-      auth:{persistSession:true,storage:window.sessionStorage,autoRefreshToken:true,detectSessionInUrl:false}
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
     });
   }
   async function readProfile(userId) {
@@ -229,8 +229,13 @@
         const form=document.getElementById('loginForm');
         const box=document.getElementById('loginError');
         if(!form) throw new Error('LOGIN_FORM_NOT_FOUND');
+        const continueToApp = profile => location.replace(
+          QA.pageUrl(profile.must_change_password ? 'forcePassword' : 'dashboard')
+        );
+        let submitted = false;
         form.addEventListener('submit',async e=>{
           e.preventDefault();
+          submitted = true;
           const btn=document.getElementById('loginBtn');
           btn.disabled=true;
           box.style.color='#475569';
@@ -246,8 +251,7 @@
             const profile=await withTimeout(readProfile(auth.user.id),10000,'PROFILE_TIMEOUT');
             document.getElementById('password').value='';
             box.textContent='เข้าสู่ระบบสำเร็จ กำลังเปิดหน้าใบงาน...';
-            if(profile.must_change_password) location.replace(QA.pageUrl('forcePassword'));
-            else location.replace(QA.pageUrl('dashboard'));
+            continueToApp(profile);
           } catch(err) {
             box.style.color='#b91c1c';
             const code=String(err?.message||err||'');
@@ -258,6 +262,15 @@
         });
         const signupLink=document.getElementById('signupLink');
         if(signupLink) signupLink.href=QA.pageUrl('signup');
+        if (loginParams.get('confirmed') !== '1') {
+          void withTimeout(QA.client.auth.getSession(), 10000, 'AUTH_SESSION_TIMEOUT')
+            .then(async ({data, error}) => {
+              if (error || !data.session || submitted) return;
+              const profile = await withTimeout(readProfile(data.session.user.id), 10000, 'PROFILE_TIMEOUT');
+              if (!submitted) continueToApp(profile);
+            })
+            .catch(() => { /* The form remains available if the saved session cannot be resumed. */ });
+        }
         readyResolve();
         return;
       }
@@ -265,23 +278,27 @@
       // Signup is public and should not wait for an auth-session check either.
       if(isSignup) {
         document.body.classList.remove('qa-auth-loading');
-        try {
-          const depts=await withTimeout(rpc('qa_public_departments',{}),10000,'DEPARTMENT_LOAD_TIMEOUT');
-          const sel=document.getElementById('department');
-          for(const d of depts||[]){const o=document.createElement('option');o.value=d.code;o.textContent=d.code;sel.append(o);}
-        } catch(e){document.getElementById('signupError').textContent=errorOf(e).message;}
+        const departmentSelect = document.getElementById('department');
+        const signupBtn = document.getElementById('signupBtn');
+        const signupDepartments = new Set();
         const deptRequestBtn=document.getElementById('departmentRequestBtn');
         const deptCreationPanel=document.getElementById('departmentCreationPanel');
         const deptCreationNotice=document.getElementById('departmentCreationNotice');
         try {
-          const policy=await withTimeout(rpc('qa_public_department_creation_policy',{}),10000,'DEPARTMENT_POLICY_TIMEOUT');
-          if(policy?.allowCreation===true){
-            if(deptCreationPanel) deptCreationPanel.hidden=false;
-            if(deptRequestBtn) deptRequestBtn.disabled=false;
-            if(deptCreationNotice) deptCreationNotice.textContent='';
-          } else if(deptCreationNotice) deptCreationNotice.textContent='ปิดรับแผนกใหม่แล้ว เลือกแผนกที่มีอยู่หรือติดต่อผู้ดูแล';
+          const options = await withTimeout(rpc('qa_public_signup_options_v1', {}), 10000, 'DEPARTMENT_LOAD_TIMEOUT');
+          if (!Array.isArray(options?.departments)) throw new Error('โหลดรายชื่อแผนกไม่สำเร็จ');
+          for (const code of options.departments) {
+            signupDepartments.add(code);
+            departmentSelect.add(new Option(code, code));
+          }
+          if (options.allowCreation) {
+            deptCreationPanel.hidden = false;
+            deptRequestBtn.disabled = false;
+          }
+          signupBtn.disabled = signupDepartments.size === 0 && !options.allowCreation;
+          deptCreationNotice.textContent = signupBtn.disabled ? 'ไม่มีแผนกเปิดรับสมัคร กรุณาติดต่อผู้ดูแล' : '';
         } catch(e){
-          if(deptCreationNotice) deptCreationNotice.textContent='ยังตรวจสอบการเปิดรับแผนกใหม่ไม่ได้ กรุณาลองโหลดหน้าใหม่ หากมีแผนกอยู่แล้วสามารถสมัครต่อได้';
+          deptCreationNotice.textContent = 'โหลดรายชื่อแผนกไม่สำเร็จ กรุณาลองโหลดหน้าใหม่';
         }
         if(deptRequestBtn) deptRequestBtn.addEventListener('click',async()=>{
           const box=document.getElementById('departmentRequestMsg');box.textContent='';
@@ -294,11 +311,12 @@
           try{
             const result=await withTimeout(rpc('qa_request_department',{p_code:code,p_name:name,p_requester_name:requesterName,p_requester_email:requesterEmail}),10000,'DEPARTMENT_REQUEST_TIMEOUT');
             if(!result?.success) throw new Error('ส่งคำขอไม่สำเร็จ');
-            const sel=document.getElementById('department');
-            let option=Array.from(sel.options).find(o=>o.value===result.code);
-            if(!option){option=document.createElement('option');option.value=result.code;option.textContent=result.code;sel.append(option);}
-            sel.value=result.code;
-            sel.dispatchEvent(new Event('change',{bubbles:true}));
+            if (!signupDepartments.has(result.code)) {
+              signupDepartments.add(result.code);
+              departmentSelect.add(new Option(result.code, result.code));
+            }
+            departmentSelect.value = result.code;
+            departmentSelect.dispatchEvent(new Event('change', {bubbles:true}));
             box.style.color='#166534';box.textContent=(result.status==='EXISTING'?'เลือกแผนกเดิม ':'เพิ่มแผนก ')+result.code+' แล้ว สมัครสมาชิกต่อได้ทันที';
           }catch(err){
             box.style.color='#b91c1c';box.textContent=errorOf(err).message;
@@ -309,14 +327,17 @@
           }finally{deptRequestBtn.disabled=!!deptCreationPanel?.hidden;}
         });
         document.getElementById('signupForm').addEventListener('submit',async e=>{
-          e.preventDefault();const btn=document.getElementById('signupBtn');btn.disabled=true;
+          e.preventDefault();
+          if (signupBtn.disabled) return;
+          signupBtn.disabled = true;
           const box=document.getElementById('signupError');box.textContent='';
           try{
             const display_name=document.getElementById('displayName').value.trim();
-            const department=document.getElementById('department').value;
+            const department=departmentSelect.value;
             const email=document.getElementById('email').value.trim();
             const password=document.getElementById('password').value;
             const confirm=document.getElementById('confirmPassword').value;
+            if (!signupDepartments.has(department)) throw new Error('กรุณาเลือกแผนกจากรายการ');
             if(password.length<8) throw new Error('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
             if(password!==confirm) throw new Error('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
             const {data:signup,error:err}=await withTimeout(QA.client.auth.signUp({email,password,options:{emailRedirectTo:QA.pageUrl('login',{confirmed:'1'}),data:{qa_signup:'1',display_name,department}}}),15000,'SIGNUP_TIMEOUT');
@@ -330,7 +351,7 @@
             }else{
               success.innerHTML='<b>สมัครสมาชิกสำเร็จ</b><br>ระบบกำลังรอการยืนยันอีเมล กรุณาตรวจ Inbox แล้วกดลิงก์ยืนยันก่อนเข้าสู่ระบบ<br><br><a href="'+QA.pageUrl('login')+'">กลับหน้า Login</a>';
             }
-          }catch(err){box.textContent=errorOf(err).message;}finally{btn.disabled=false;}
+          }catch(err){box.textContent=errorOf(err).message;}finally{signupBtn.disabled=false;}
         });
         readyResolve();
         return;
