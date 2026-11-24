@@ -7,7 +7,7 @@
   <title>Profile</title>
   <script src="app-release.js?v=serial-20261103" ></script><script src="config.js?v=release-20261026-v3"></script>
   <script src="workflow-rules.js?v=handoff-20261030"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js?v=signup-session-20261120-r10"></script>
+  <script src="supabase-api.js?v=web-push-20261124-r11"></script>
   <script src="navigation.js?v=launch-20261030"></script>
   <style>
     *{box-sizing:border-box}body{margin:0;font-family:Arial,Tahoma,sans-serif;background:#f4f6f8;color:#1f2937}
@@ -15,25 +15,24 @@
     .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 4px 14px rgba(15,23,42,.04)}
     .row{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid #f1f5f9}.row:last-child{border-bottom:0}.label{font-weight:800;color:#475569}
     [hidden],.hidden{display:none!important}
-    button,.btn-link{font:inherit;font-size:14px;border:0;border-radius:9px;background:#17263d;color:#fff;padding:12px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;line-height:1.5;max-width:100%;text-align:center}button:disabled{opacity:.55;cursor:wait}
-    button:focus-visible,a:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}
-    .line-card h2{font-size:20px;margin:0 0 6px}.line-intro{margin:0 0 22px}.line-steps{list-style:none;margin:0;padding:0;display:grid;gap:14px}
-    .line-step{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:12px}
-    .step-number{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#edf2f7;color:#334155;font-size:14px;font-weight:800}
-    .step-content{min-width:0}.step-content h3{font-size:16px;line-height:1.6;margin:1px 0 6px}.note{font-size:14px;line-height:1.7;color:#64748b;margin:0 0 12px}
-    .add-options{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:20px;align-items:center}.line-add{background:#087f43}.add-note{margin:8px 0 0;font-size:12px}
-    .line-qr{text-align:center}.line-qr a{display:inline-block;max-width:100%}.line-qr img{display:block;width:156px;max-width:100%;height:auto;border:1px solid #edf2f7;border-radius:9px}.qr-caption{font-size:12px;color:#64748b;line-height:1.6;margin:6px 0 0}
-    .line-box{margin-top:12px;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px}.code{font-family:ui-monospace,Consolas,monospace;font-size:26px;font-weight:800;letter-spacing:1px;margin:0 0 12px;color:#17263d;user-select:all;overflow-wrap:anywhere}.copy,.line-refresh{background:#eef2f6;color:#334155}
-    .line-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.status-badge{display:inline-flex;align-items:center;padding:8px 11px;border-radius:999px;font-weight:700;font-size:14px;line-height:1.5}.status-on{background:#dcfce7;color:#166534}.status-off{background:#f1f5f9;color:#475569}.status-loading{background:#fef3c7;color:#92400e}.line-meta{font-size:12px;color:#64748b;line-height:1.7;margin-top:10px;overflow-wrap:anywhere}
-    .unlink-area{display:flex;justify-content:flex-end;margin-top:18px}.unlink-btn{background:transparent;color:#b91c1c;border:1px solid #fecdd3;font-size:13px}
-    .error{color:#b91c1c;margin-top:12px;white-space:pre-wrap;font-size:14px;line-height:1.7}.success{color:#166534;margin-top:12px;font-size:14px;line-height:1.7}.error:empty,.success:empty{display:none}
+    button:focus-visible{outline:3px solid #4583c0;outline-offset:3px}
+    .push-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .push-row h2{font-size:18px;margin:0}
+    .push-row p{font-size:14px;margin:5px 0 0;color:#465d76}
+    .push-status{margin:10px 0 0;font-size:14px;color:#465d76}
+    .push-status:empty{display:none}
+    #webPushToggle{display:flex;align-items:center;box-sizing:border-box;flex:none;width:48px;height:28px;padding:3px;border:1px solid #7b8da1;border-radius:99px;background:#a4b6c9;cursor:pointer}
+    #webPushToggle::before{content:"";width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .16s}
+    #webPushToggle[aria-checked="true"]{background:#245b96;border-color:#245b96}
+    #webPushToggle[aria-checked="true"]::before{transform:translateX(20px)}
+    #webPushToggle:disabled{opacity:.55;cursor:default}
     .row>div{min-width:0;overflow-wrap:anywhere}
-    @media(max-width:600px){.page{padding:22px 14px}.card{padding:18px}.row{grid-template-columns:1fr;gap:3px}.line-step{padding:14px;gap:10px}.add-options{grid-template-columns:minmax(0,1fr);gap:16px}.line-qr{justify-self:start}.code{font-size:24px}.line-status{align-items:flex-start;flex-direction:column}.line-refresh{width:100%}}
+    @media(max-width:600px){.page{padding:22px 14px}.card{padding:18px}.row{grid-template-columns:1fr;gap:3px}}
   </style>
-</head>
+<link rel="manifest" href="web-push.webmanifest"><link rel="apple-touch-icon" href="web-push-icon-192.png"></head>
 <body class="qa-auth-loading">
 <main class="page">
-  <div class="head"><h1>Profile</h1><div class="muted">ข้อมูลบัญชีและการเชื่อมต่อ LINE</div></div>
+  <div class="head"><h1>Profile</h1><div class="muted">ข้อมูลบัญชี</div></div>
 
   <section class="card">
     <div class="row"><div class="label">ชื่อ</div><div id="displayName">-</div></div>
@@ -41,141 +40,25 @@
     <div class="row"><div class="label">Department</div><div id="department">-</div></div>
   </section>
 
-  <section class="card line-card" aria-labelledby="lineHeading">
-    <h2 id="lineHeading">รับแจ้งเตือนผ่าน LINE</h2>
-    <p class="note line-intro">เชื่อมบัญชีของคุณกับ Complain Bot ตาม 3 ขั้นตอนนี้</p>
-    <ol class="line-steps">
-      <li class="line-step">
-        <span class="step-number" aria-hidden="true">1</span>
-        <div class="step-content">
-          <h3>เพิ่มเพื่อน Complain Bot</h3>
-          <div class="add-options">
-            <div>
-              <a id="addLineBtn" class="btn-link line-add" href="https://lin.ee/WiIjIZp" target="_blank" rel="noopener noreferrer">เพิ่มเพื่อนใน LINE</a>
-              <p class="note add-note">กดปุ่ม หรือใช้โทรศัพท์สแกน QR Code</p>
-            </div>
-            <div class="line-qr">
-              <a id="lineQrLink" href="https://lin.ee/WiIjIZp" target="_blank" rel="noopener noreferrer" aria-label="เพิ่มเพื่อน Complain Bot ผ่าน QR Code">
-                <img src="line-complain-bot-qr.png" alt="QR Code เพิ่มเพื่อน Complain Bot" width="156" height="156">
-              </a>
-              <p class="qr-caption">สแกนหรือแตะ QR Code ได้เลย</p>
-            </div>
-          </div>
-        </div>
-      </li>
-      <li class="line-step">
-        <span class="step-number" aria-hidden="true">2</span>
-        <div class="step-content">
-          <h3>ส่งรหัสไปยังไลน์ Complain Bot</h3>
-          <p class="note">สร้างรหัส → คัดลอก → ส่งในแชทส่วนตัว Complain Bot ภายใน 10 นาที</p>
-          <button id="createCodeBtn" type="button">สร้างรหัสเชื่อมต่อ LINE</button>
-          <div id="linkBox" class="line-box hidden" aria-live="polite">
-            <div id="linkCommand" class="code">LINK ------</div>
-            <button id="copyBtn" class="copy" type="button">คัดลอกคำสั่ง</button>
-          </div>
-        </div>
-      </li>
-      <li class="line-step">
-        <span class="step-number" aria-hidden="true">3</span>
-        <div class="step-content">
-          <h3>กลับมาตรวจสอบการเชื่อมต่อ</h3>
-          <p class="note">เมื่อบอตตอบว่า “เชื่อมต่อ LINE สำเร็จ” กลับมาที่หน้านี้</p>
-          <div class="line-status">
-            <span id="lineStatusBadge" class="status-badge status-loading" role="status">กำลังตรวจสอบสถานะ...</span>
-            <button id="refreshLineBtn" class="line-refresh" type="button">ตรวจสอบสถานะ</button>
-          </div>
-          <div id="lineMeta" class="line-meta"></div>
-        </div>
-      </li>
-    </ol>
-    <div id="error" class="error" role="status"></div>
-    <div class="unlink-area"><button id="unlinkLineBtn" class="unlink-btn" type="button" hidden>ยกเลิกการเชื่อมต่อ LINE</button></div>
+  <section class="card" aria-labelledby="webPushHeading">
+    <div class="push-row">
+      <div><h2 id="webPushHeading">รับแจ้งเตือนบนเครื่องนี้</h2><p>งานเข้าแผนก งานรอตรวจ และงานที่ต้องแก้ไข</p></div>
+      <button id="webPushToggle" type="button" role="switch" aria-labelledby="webPushHeading"
+        aria-describedby="webPushStatus" aria-checked="false" disabled></button>
+    </div>
+    <p id="webPushStatus" class="push-status" role="status">กำลังโหลด...</p>
   </section>
 </main>
 <script>
-document.addEventListener('DOMContentLoaded',()=>setTimeout(initProfilePage,0));
-function waitQA(){return new Promise((res,rej)=>{let n=0;const t=setInterval(()=>{if(QA.profile){clearInterval(t);res()}else if(++n>100){clearInterval(t);rej(new Error('Profile load timeout'))}},50)})}
-async function initProfilePage(){
-  await waitQA();
-  const p=QA.profile||{};
-  document.getElementById('displayName').textContent=p.display_name||'-';
-  document.getElementById('role').textContent=String(p.role||'-').replaceAll('_',' ');
-  document.getElementById('department').textContent=p.department||'ไม่สังกัดแผนก';
-  document.getElementById('createCodeBtn').onclick=createLinkCode;
-  document.getElementById('copyBtn').onclick=copyCommand;
-  document.getElementById('unlinkLineBtn').onclick=unlinkLine;
-  document.getElementById('refreshLineBtn').onclick=refreshLineStatus;
-  const configuredAddUrl=String(window.QA_CONFIG?.lineAddFriendUrl||'').trim();
-  const officialAddUrl='https://lin.ee/WiIjIZp';
-  const obsoleteAddUrls=new Set(['https://lin.ee/9nyAoID','https://lin.ee/O998mIU']);
-  const addUrl=(!configuredAddUrl||obsoleteAddUrls.has(configuredAddUrl))?officialAddUrl:configuredAddUrl;
-  const addBtn=document.getElementById('addLineBtn');
-  const qrLink=document.getElementById('lineQrLink');
-  if(/^https:\/\//i.test(addUrl)){addBtn.href=addUrl;qrLink.href=addUrl}else{addBtn.hidden=true;qrLink.removeAttribute('href')}
-  await refreshLineStatus();
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshLineStatus()});
-}
-function formatLineDate(value){
-  if(!value)return '';
-  try{return new Intl.DateTimeFormat('th-TH',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Bangkok'}).format(new Date(value))}
-  catch{return String(value)}
-}
-async function refreshLineStatus(){
-  const badge=document.getElementById('lineStatusBadge'),meta=document.getElementById('lineMeta');
-  const unlink=document.getElementById('unlinkLineBtn'),refresh=document.getElementById('refreshLineBtn');
-  badge.className='status-badge status-loading';badge.textContent='กำลังตรวจสอบสถานะ...';meta.textContent='';refresh.disabled=true;
-  try{
-    const st=await QA.api.getLineStatus();
-    const linked=!!st?.linked;
-    badge.className='status-badge '+(linked?'status-on':'status-off');
-    badge.textContent=linked?'● เชื่อมต่อแล้ว':'○ ยังไม่ได้เชื่อม';
-    unlink.hidden=!linked;
-    if(linked){
-      const parts=[];
-      if(st.line_user_masked)parts.push('LINE: '+st.line_user_masked);
-      if(st.linked_at)parts.push('เชื่อมเมื่อ: '+formatLineDate(st.linked_at));
-      meta.textContent=parts.join('  •  ');
-      document.getElementById('linkBox').classList.add('hidden');
-    }else meta.textContent='ยังไม่ได้เชื่อมต่อ · ทำตามข้อ 1–2 ด้านบน';
-    return st;
-  }catch(e){
-    badge.className='status-badge status-off';badge.textContent='ตรวจสอบสถานะไม่สำเร็จ';
-    meta.textContent=QA.errorOf(e).message;unlink.hidden=true;
-  }finally{refresh.disabled=false}
-}
-async function createLinkCode(){
-  const btn=document.getElementById('createCodeBtn'),err=document.getElementById('error');
-  btn.disabled=true;err.className='error';err.textContent='';
-  try{
-    const {data,error}=await QA.client.rpc('qa_create_line_link_code');
-    if(error) throw error;
-    const code=String(data||'').trim();
-    if(!/^\d{6}$/.test(code)) throw new Error('ไม่สามารถสร้างรหัสเชื่อมต่อ LINE ได้');
-    document.getElementById('linkCommand').textContent='LINK '+code;
-    document.getElementById('linkBox').classList.remove('hidden');
-  }catch(e){err.textContent=QA.errorOf(e).message}
-  finally{btn.disabled=false}
-}
-async function copyCommand(){
-  const text=document.getElementById('linkCommand').textContent.trim();
-  try{await navigator.clipboard.writeText(text);document.getElementById('copyBtn').textContent='คัดลอกแล้ว'}
-  catch{document.getElementById('copyBtn').textContent='คัดลอกไม่สำเร็จ'}
-  setTimeout(()=>document.getElementById('copyBtn').textContent='คัดลอกคำสั่ง',1500);
-}
-
-async function unlinkLine(){
-  const btn=document.getElementById('unlinkLineBtn'),err=document.getElementById('error');
-  if(!confirm('ยืนยันยกเลิกการเชื่อมต่อ LINE ของบัญชีนี้?')) return;
-  btn.disabled=true;err.textContent='';
-  try{
-    await QA.api.unlinkLine();
-    document.getElementById('linkBox').classList.add('hidden');
-    err.className='success';err.textContent='ยกเลิกการเชื่อมต่อ LINE แล้ว สามารถสร้างรหัสใหม่เพื่อเชื่อมอีกครั้งได้';
-    await refreshLineStatus();
-  }catch(e){err.className='error';err.textContent=QA.errorOf(e).message}
-  finally{btn.disabled=false}
-}
-
+document.addEventListener('DOMContentLoaded', () => {
+  QA.whenReady().then(() => {
+    const p = QA.profile;
+    document.getElementById('displayName').textContent = p.display_name || '-';
+    document.getElementById('role').textContent = String(p.role || '-').replaceAll('_', ' ');
+    document.getElementById('department').textContent = p.department || 'ไม่สังกัดแผนก';
+  }).catch(() => {});
+});
 </script>
+<script src="web-push-profile.js?v=web-push-20261124-r11" defer></script>
 </body>
 </html>

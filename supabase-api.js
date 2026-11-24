@@ -26,7 +26,7 @@
   // This works both at / and at /repository-name/ on GitHub Pages.
   const appBase = new URL('.', document.currentScript?.src || location.href);
   const pageFiles = Object.freeze({create:'create.html', index:'index.html',
-    job:'job.html', history:'history.html', dashboard:'dashboard.html', customer:'customer.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
+    job:'job.html', vnextJob:'vnext-job.html', history:'history.html', dashboard:'dashboard.html', customer:'customer.html', work:'work.html', settings:'settings.html', profile:'profile.html', signup:'signup.html', reset:'reset-password.html', forcePassword:'force-password.html', login:'login.html'});
   const pageName = input => {
     try {
       const u = new URL(input || location.href, appBase);
@@ -164,7 +164,21 @@
     try {
       if(!raw) return fallback;
       const u=new URL(raw,appBase),page=pageName(u.href);
-      if(u.username || u.password || !['create','job','history','dashboard','customer','work','settings','profile'].includes(page)) return fallback;
+      if(u.username || u.password || !['create','job','vnextJob','history','dashboard','customer','work','settings','profile'].includes(page)) return fallback;
+      if(page==='vnextJob') {
+        const id=validJobId(u.searchParams.get('id') || u.searchParams.get('job'));
+        if(!id) return fallback;
+        const params={id};
+        const department=u.searchParams.get('department');
+        if(/^[A-Za-z0-9_-]{1,30}$/.test(department||''))params.department=department;
+        if(u.searchParams.get('notification')==='1'){
+          params.notification='1';
+          const assignment=u.searchParams.get('assignment');
+          if(/^[a-f\d-]{36}$/i.test(assignment||''))params.assignment=assignment;
+        }
+        const hash=/^#issue-[a-f\d-]{36}$/i.test(u.hash)?u.hash:'';
+        return QA.pageUrl('vnextJob',params)+hash;
+      }
       const id=QA.jobIdFromUrl(u.href);
       if(page==='job' || (page==='create' && id)) return id?QA.jobUrl(id):QA.pageUrl('history');
       return QA.pageUrl(page,Object.fromEntries(u.searchParams));
@@ -174,7 +188,9 @@
   QA.loginUrl=() => {
     const page=pageName(),id=QA.jobIdFromUrl();
     let next;
-    if(id && ['create','job'].includes(page)) next=QA.jobUrl(id);
+    if(page==='vnextJob') next=safeNext(location.href);
+    else if(page==='forcePassword') next=safeNext(new URLSearchParams(location.search).get('next'));
+    else if(id && ['create','job'].includes(page)) next=QA.jobUrl(id);
     else if(['create','history','dashboard','customer','work','settings','profile'].includes(page)) next=QA.pageUrl(page,Object.fromEntries(new URLSearchParams(location.search)));
     else next=QA.pageUrl('dashboard');
     return QA.pageUrl('login',{next});
@@ -213,7 +229,7 @@
     try {
       const actualPage=document.querySelector('meta[name="qa-page"]')?.content;
       const routePage=pageName(),incomingId=QA.jobIdFromUrl();
-      if(actualPage && routePage && actualPage!==routePage) {
+      if(actualPage && routePage && actualPage!==routePage && !(actualPage==='job' && routePage==='vnextJob')) {
         throw new Error('HTML_PAGE_MISMATCH: '+location.pathname+
           ' contains the '+actualPage+' page. Upload the matching current HTML file to GitHub.');
       }
@@ -229,8 +245,9 @@
         const form=document.getElementById('loginForm');
         const box=document.getElementById('loginError');
         if(!form) throw new Error('LOGIN_FORM_NOT_FOUND');
+        const next = safeNext(loginParams.get('next'));
         const continueToApp = profile => location.replace(
-          QA.pageUrl(profile.must_change_password ? 'forcePassword' : 'dashboard')
+          profile.must_change_password ? QA.pageUrl('forcePassword',{next}) : next
         );
         let submitted = false;
         form.addEventListener('submit',async e=>{
@@ -362,7 +379,7 @@
       if(!data.session) {location.replace(QA.loginUrl());return;}
       QA.profile=await withTimeout(readProfile(data.session.user.id),10000,'PROFILE_TIMEOUT');
       if(QA.profile.must_change_password && currentPage!=='forcePassword'){
-        location.replace(QA.pageUrl('forcePassword'));
+        location.replace(QA.pageUrl('forcePassword',{next:safeNext(location.href)}));
         return;
       }
       window.mountQaNavigation?.();
@@ -608,8 +625,6 @@
     acceptJob(jobId,data={}){return mutate('ACCEPT',jobId,{acceptComment:String(data.acceptComment||'')},[]);},
     saveCorrectiveAction(data){return mutate(data.submitToQA===true?'SUBMIT':'SAVE',data.jobId,data,data.files||[]);},
     saveQaVerification(data){return mutate('VERIFY',data.jobId,data,[]);},
-    async getLineStatus(){return await rpc('qa_get_line_status',{});},
-    async unlinkLine(){return await rpc('qa_unlink_line',{});},
     async createReportLinks(storagePath,fileName){
       if(!storagePath) throw new Error('REPORT_STORAGE_PATH_REQUIRED');
       const bucket=cfg.reportBucket||'qa-reports';
