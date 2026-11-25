@@ -1,5 +1,13 @@
 (()=>{'use strict';const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const jobId=new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('job');let detail,media=[];const responseQueues=new Map(),responseDrafts=new Map();let activePickers=[];let mediaRoundReady=false;let departmentHighlightTimer;let issuerEntryNormalized=false;let trackerDepartment=new URLSearchParams(location.search).get('department')||'';let categoryNames=new Map();let receivingDepartments=[];let completedRounds=new Map();
+const jobQuery=new URLSearchParams(location.search);
+const fromAllJobs=jobQuery.get('from')==='all-jobs';
+if(fromAllJobs){
+ const back=document.querySelector('.job-home'),url=new URLSearchParams({view:'all'}),scope=jobQuery.get('scope');
+ if(['department','mine'].includes(scope))url.set('scope',scope);
+ back.href='dashboard.html?'+url.toString();
+ back.textContent='กลับรายการงานทั้งหมด';
+}
 function requestEditError(e){const text=e?.message||String(e);if(text.includes('VERSION_CONFLICT'))return 'มีคนแก้ไขข้อมูลระหว่างเปิดหน้านี้ กรุณาเปิดแก้ไขใหม่';if(text.includes('JOB_ALREADY_ACCEPTED_OR_ACTIVE'))return 'มีแผนกรับงานแล้ว แก้ข้อมูลใบแจ้งไม่ได้จนกว่า System Admin จะย้อนกลับรอรับงานครบทุกแผนก';if(text.includes('DEPARTMENT_HAS_SAVED_WORK_KEEP_ASSIGNED'))return 'แผนกนี้มีคำตอบหรือไฟล์เดิมอยู่ ต้องคงแผนกนี้ไว้เพื่อรักษาข้อมูล สามารถเพิ่มแผนกอื่นได้';if(['PGRST202','42883'].includes(String(e?.code||'')))return 'กรุณารัน SQL ชุดแก้ไขข้อมูลใบแจ้งก่อน';return text;}
 async function openRequestHeaderEditor(){
  if($('requestHeaderEditor')){$('requestHeaderEditor').scrollIntoView({behavior:'smooth',block:'start'});return;}
@@ -235,21 +243,56 @@ function guideDetail(context={}){
  target.scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth',block:'start'});
 }
 
+function catalogPanel(assignment,onlyReading){
+ const panel=document.createElement('section');
+ panel.className='catalog-department-panel';
+ const response=assignment.published_response;
+ const fields=response?Object.entries({
+  problem_analysis:'วิเคราะห์สาเหตุ',corrective_action:'การแก้ปัญหา',preventive_action:'การป้องกัน'
+ }).filter(([key])=>String(response[key]||'').trim())
+   .map(([key,title])=>'<section class="response-field-card"><b>'+esc(title)+'</b><div class="read-text">'+esc(response[key])+'</div></section>').join(''):'';
+ panel.innerHTML=(onlyReading?'':'<span class="catalog-read-only">ดูอย่างเดียว</span>')+(fields
+  ? (response.previous_round?'<p class="muted">คำตอบที่ส่งครั้งก่อน</p>':'')+'<div class="response-fields-grid">'+fields+'</div>'
+  : '<p class="muted">ยังไม่มีคำตอบที่ส่งแล้ว</p>');
+ return panel;
+}
+function appendCatalogUnassigned(parent,issues){
+ if(!issues.length)return;
+ const section=document.createElement('section');
+ section.className='sheet catalog-unassigned';
+ section.innerHTML='<h2>รายละเอียดที่ยังไม่ได้ระบุแผนกรับเรื่อง</h2>'+issues.map(issue=>
+  '<article id="catalog-issue-'+esc(issue.issue_id)+'"><h3>'+esc(categoryName(issue.category_code,issue.category_other||'')||'รายละเอียดปัญหา')+
+  '</h3><p class="expanded-issue-description">'+esc(issue.description||'')+'</p>'+
+  (issue.request_due_date?'<p class="issue-request-due"><b>วันกำหนดเสร็จ:</b> '+esc(formatRequestDate(issue.request_due_date))+'</p>':'')+'</article>'
+ ).join('');
+ parent.append(section);
+}
 function detailState(state){const host=$('captureArea');if(host){host.dataset.detailState=state;host.setAttribute('aria-busy',String(state==='loading'));}const loading=$('detailLoading');if(loading)loading.hidden=state!=='loading';$('pdfButton').disabled=state!=='ready';}
 async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing())){setNote(QAMediaPicker.preparingMessage);return false;}if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
  try{
  // These secured reads use the same job ID and do not depend on one another.
  // Settle every read so optional history errors cannot reject an unread promise.
  signedUrls.clear();
- const loaded=await Promise.allSettled([
-  loadCategoryNames(),rpc('qa_vnext_job_detail',{p_job_id:jobId}),loadMedia(),
-  rpc('qa_v51_assignment_rounds',{p_job_id:jobId}),rpc('qa_issue_display_codes',{p_job_id:jobId}),
-  rpc('qa_v38_job_history',{p_job_id:jobId}),rpc('qa_workflow_notes_v1',{p_job_id:jobId})
- ]);
+ const catalog=fromAllJobs?await rpc('qa_all_jobs_detail_v1',{p_job_id:jobId}):null;
+ const catalogOnly=Boolean(catalog&&catalog.workflow_visible!==true);
+ const loaded=await Promise.allSettled(catalogOnly
+  ? [loadCategoryNames(),catalog,{rows:[],roundReady:false},[],[],[],{issues:{},assignments:{}}]
+  : [loadCategoryNames(),rpc('qa_vnext_job_detail',{p_job_id:jobId}),loadMedia(),
+     rpc('qa_v51_assignment_rounds',{p_job_id:jobId}),rpc('qa_issue_display_codes',{p_job_id:jobId}),
+     rpc('qa_v38_job_history',{p_job_id:jobId}),rpc('qa_workflow_notes_v1',{p_job_id:jobId})]);
+ $('catalogReadOnly').hidden=!catalogOnly;
+ $('pdfButton').hidden=catalogOnly;
+ $('jobHistory').hidden=catalogOnly;
  for(const index of [0,1,2,4,6])if(loaded[index].status==='rejected')throw loaded[index].reason;
- detail=loaded[1].value;if(QA.profile?.role==='viewer')detail.can_manage_issues=false;
+ detail=loaded[1].value;
+ detail._catalogOnly=catalogOnly;
+ if(QA.profile?.role==='viewer'||catalogOnly)detail.can_manage_issues=false;
  detail._workflow_history=loaded[5].status==='fulfilled'?loaded[5].value:[];
- detail.assignments=QAWorkflow.visibleAssignments(QA.profile,detail,detail.assignments||[]);
+ const authorizedAssignments=catalogOnly?[]:QAWorkflow.visibleAssignments(QA.profile,detail,detail.assignments||[]);
+ const ids=new Set(authorizedAssignments.map(a=>String(a.assignment_id)));
+ detail.assignments=[...authorizedAssignments,...(catalog?.assignments||[])
+  .filter(a=>!ids.has(String(a.assignment_id)))
+  .map(a=>({...a,_catalogRead:true}))];
  media=loaded[2].value.rows;mediaRoundReady=loaded[2].value.roundReady;
  const codeRows=loaded[4].value;
  // Correction history remains supplementary and may fail independently.
@@ -266,12 +309,17 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
  if(detail.can_manage_issues||detail.assignments.some(a=>QAWorkflow.permissions(QA.profile,detail,a).canResolveUnrelated)){try{const rec=await rpc('qa_vnext_receivers',{});receivingDepartments=Array.isArray(rec)?rec.map(x=>({code:String(x.department_code||x.code||''),enabled:x.enabled!==false})).filter(x=>x.code&&x.enabled):[];}catch(_e){receivingDepartments=[];}}
  const editBtn=$('editRequestBtn');if(editBtn){editBtn.hidden=!detail.can_manage_issues;editBtn.textContent='แก้ไขใบแจ้ง';editBtn.onclick=async()=>{if(editBtn.disabled)return;editBtn.disabled=true;try{await openRequestHeaderEditor();}catch(e){setNote('เปิดแก้ไขใบแจ้งไม่ได้: '+requestEditError(e),true);}finally{editBtn.disabled=false;}};}
 
+ if(!catalogOnly){
  const pendingLine=sessionStorage.getItem('qa-v49-pending-line:'+jobId);if(pendingLine){try{receiverChangeRetryButton(JSON.parse(pendingLine));}catch(_e){sessionStorage.removeItem('qa-v49-pending-line:'+jobId);}}
  const warning=sessionStorage.getItem('qa-v38-line-warning:'+jobId);if(warning){setNote('บันทึกใบงานแล้ว แต่แจ้งเตือน LINE ไม่สำเร็จ: '+warning,true);sessionStorage.removeItem('qa-v38-line-warning:'+jobId);}
  if(sessionStorage.getItem('qa-full-edit-lines:'+jobId))requestLineRetry();
+ }
  $('details').innerHTML=`<dl class="record-facts"><div><dt>Serial Number</dt><dd>${esc(detail.serial_no||'-')}</dd></div><div><dt>ลูกค้า</dt><dd>${esc(detail.customer_name||'-')}</dd></div><div><dt>ประเทศ</dt><dd>${esc(detail.country||'-')}</dd></div></dl>${String(detail.requester_remark||'').trim()?'<p class="record-remark"><b>Remark:</b> '+esc(detail.requester_remark)+'</p>':''}`;
  const list=$('assignments');list.replaceChildren();
- if(!detail.assignments?.length){list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';QAWork.emptyForwarded(list,loaded[5].status==='fulfilled'?loaded[5].value:[],media,getUrl);renderTracker(detail);if(list.dataset.forwardedEmpty==='true')document.querySelectorAll('.tracker-stages [data-step]').forEach(n=>{n.classList.remove('current','done');n.removeAttribute('aria-current');});detailState('ready');return true;}
+ const unassigned=catalog?.unassigned_issues||[];
+ if(!detail.assignments?.length){
+ if(unassigned.length){appendCatalogUnassigned(list,unassigned);renderTracker(detail);detailState('ready');return true;}
+ list.innerHTML='<section class="sheet">ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง</section>';if(!catalogOnly)QAWork.emptyForwarded(list,loaded[5].status==='fulfilled'?loaded[5].value:[],media,getUrl);renderTracker(detail);if(list.dataset.forwardedEmpty==='true')document.querySelectorAll('.tracker-stages [data-step]').forEach(n=>{n.classList.remove('current','done');n.removeAttribute('aria-current');});detailState('ready');return true;}
  // Section 2 is one permanent container. Every issue remains visible in order.
  const issueSheet=document.createElement('section');issueSheet.className='sheet issues-section';issueSheet.id='allIssues';
  issueSheet.innerHTML='<h2>รายละเอียด</h2><div id="allIssueCards"></div>';
@@ -298,13 +346,15 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
    displayedIssues.add(uniqueKey);
 
    // The detail view is read-only for issuer data; edit through openRequestHeaderEditor().
+   if(a._catalogRead)continue;
    cards.push(`<article class="issue issue-card" id="issue-${esc(i.issue_id)}-${esc(a.assignment_id)}" data-issue-id="${esc(i.issue_id)}"><h3><span class="issue-code">${esc(issueCodeFor(a,i))}</span> · ปัญหา ${esc(i.issue_number)} <span class="issue-category">${esc(categoryName(i.category_code,i.category_other||''))}</span></h3><p><b>รายละเอียดปัญหา :</b> ${esc(i.description)}</p>${media.some(m=>m.scope==='ISSUE'&&m.issue_id===i.issue_id)?'<b>ไฟล์แนบจากผู้แจ้ง</b>':''}${await mediaFor([i.issue_id],null,false)}</article>`);
   }
-  deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
+  if(a._catalogRead)deptGroup.append(catalogPanel(a,catalogOnly));
+  else deptGroup.innerHTML=`<h3 class="issue-dept-title">แผนก ${esc(a.department_code||'-')}</h3>${cards.join('')||'<p class="muted">ไม่มีรายการปัญหาสำหรับแผนกนี้</p>'}`;
   issueHost.append(deptGroup);
  }
  // Keep each response beside its own assignment issues; never guess a per-issue mapping.
- for(const a of detail.assignments){
+ for(const a of authorizedAssignments.filter(a=>a.issues?.length)){
  const rights=QAWorkflow.permissions(QA.profile,detail,a,{hasResponseFiles:media.some(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===a.assignment_id)});
  const mine=rights.own||rights.system;
  const isRequester=detail.is_requester||QA.profile?.role==='system_admin';
@@ -395,8 +445,18 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
  (responseHost||issueHost).append(el);
  if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();el.append(outside);}
  }
- organizeDetailPanels(issueSheet,issueHost,focusContext.departmentOpen);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{if(activePickers.some(p=>p.isPreparing()))throw Error(QAMediaPicker.preparingMessage);const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
- }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';$('assignments').replaceChildren();detailState('error');return false;}}
+ organizeDetailPanels(issueSheet,issueHost,focusContext.departmentOpen);
+ appendCatalogUnassigned(list,unassigned);
+ if(!catalogOnly)QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{if(activePickers.some(p=>p.isPreparing()))throw Error(QAMediaPicker.preparingMessage);const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);
+ if(!catalogOnly)await renderHistory(loaded[5]);
+ detailState('ready');
+ const browseIssue=fromAllJobs&&!requestedFocus.action&&QAStatus.issueFromHash(location.hash);
+ if(browseIssue){
+  const fold=[...issueHost.children].find(node=>node.dataset.issueId===browseIssue);
+  fold?._openIssue();
+ }else if(!catalogOnly)guideDetail(focusContext);
+ return true;
+ }catch(e){const message=fromAllJobs&&['PGRST202','42883'].includes(String(e.code||''))?'กรุณาติดตั้ง SQL ชุดเปิดดูงานทั้งหมด':e.message;setNote('อ่านใบงานไม่สำเร็จ: '+message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';$('assignments').replaceChildren();detailState('error');return false;}}
 // Each issue is one collapsed list row. Move bound assignment forms between
 // issue folds so a shared response has exactly one live editor and one version.
 function organizeDetailPanels(issueSheet,issueHost,openDepartments=[]){
@@ -404,7 +464,7 @@ function organizeDetailPanels(issueSheet,issueHost,openDepartments=[]){
  const assignments=detail.assignments||[],issues=new Map(),groups=new Map(),sourceCards=new Map();
  for(const a of assignments)for(const i of a.issues||[]){const key=String(i.issue_id);if(!issues.has(key))issues.set(key,{issue:i,assignments:[]});issues.get(key).assignments.push(a);}
  const department=String(QA.profile?.department||'').trim().toLowerCase();
- const foldDepartments=compactAdmin||detail.is_requester||(
+ const foldDepartments=compactAdmin||detail.is_requester||assignments.some(a=>a._catalogRead)||(
   department&&['user','department_admin'].includes(QA.profile.role)&&
   department===String(detail.from_department||'').trim().toLowerCase()
  );
@@ -415,14 +475,15 @@ function organizeDetailPanels(issueSheet,issueHost,openDepartments=[]){
  const badge=a=>attention(a)+'<span class="issue-status '+esc(QAStatus.canonical(a.status))+'">'+esc(label(a.status))+'</span>';
  for(const original of [...issueHost.querySelectorAll('.issue-department-group')]){
   const a=assignments.find(x=>String(x.assignment_id)===original.dataset.assignment);if(!a)continue;
-  const panel=original.querySelector('.department-panel');if(panel)panel.remove();
+  const panel=original.querySelector('.department-panel,.catalog-department-panel');if(panel)panel.remove();
   for(const card of [...original.querySelectorAll('.issue-card')]){card.querySelector(':scope>h3')?.remove();for(const p of card.querySelectorAll(':scope>p:not(.muted)'))p.remove();if(compactAdmin){card.dataset.referenceCode=card.querySelector('.issue-code')?.textContent||'';card.classList.add('admin-source-card');for(const n of [...card.children])if(n.matches('h3,p:not(.muted)'))n.remove();}
    sourceCards.set(String(a.assignment_id)+':'+card.dataset.issueId,card);cardBank.append(card);}
   const group=document.createElement('section');group.className='issue-department-group issue-operation-group'+(compactAdmin?' admin-operation-group':'');group.id=original.id;group.dataset.assignment=a.assignment_id;group.dataset.departmentCode=a.department_code;
   group.innerHTML='<div class="operation-department-heading"><strong>'+esc(a.department_code)+'</strong>'+badge(a)+'</div>';
   const accepted=!QAWorkflow.awaitingDepartmentWork(a)&&(Boolean(a.accepted_at||a.responsible_user)||['IN_PROGRESS','WAITING_REVIEW','CLOSED'].includes(a.status)),q=QAWorkflow.permissions(QA.profile,detail,a);
   const sources=document.createElement('div');sources.hidden=true;sources.className='received-issues';sources.dataset.filterAssignment=String(a.assignment_id);sources.innerHTML='<div class="source-issue-holder"></div>';
-  if(!accepted){
+  if(a._catalogRead){group.append(sources,panel);}
+  else if(!accepted){
    const dept=document.createElement('strong');dept.className='source-department-label';dept.textContent=a.department_code;group._sourceDepartmentLabel=dept;group.append(sources);
    if(panel){panel.querySelector('.response-title')?.remove();panel.querySelectorAll('.operation-waiting').forEach(n=>n.remove());panel.className='unaccepted-actions';if(panel.querySelector('button,.system-accept-note'))group.append(panel);}
   }else if(panel){panel.querySelector('.response-title')?.remove();group.append(sources,panel);}else group.append(sources);
@@ -439,6 +500,10 @@ function organizeDetailPanels(issueSheet,issueHost,openDepartments=[]){
   const requesterDue=i.request_due_date||detail.request_due_date;
   const deadlineMarkup=requesterDue?'<p class="issue-request-due"><b>วันกำหนดเสร็จ:</b> <time datetime="'+esc(requesterDue)+'">'+esc(formatRequestDate(requesterDue))+'</time></p>':'';
   const body=document.createElement('div');body.className='issue-disclosure-body';body.innerHTML=deadlineMarkup+'<div class="issue-source-before-work"></div><div class="admin-department-list"></div><h3 class="issue-operations-title" hidden></h3><div class="issue-operation-host" hidden></div>';fold.append(body);
+  if(detail._catalogOnly){
+   const description=document.createElement('p');description.className='expanded-issue-description';
+   description.textContent=i.description||'';body.prepend(description);
+  }
   const departmentFolds=new Map();
   if(foldDepartments&&related.length>1){
    const departmentsHost=body.querySelector('.admin-department-list');
@@ -620,7 +685,7 @@ async function uploadResponse(assignmentId,entries){
 }
 // Structured A4 document: text stays selectable and sections may flow across pages.
 // Detail and attachment data are already scoped by the server-side V38 RPCs.
-async function exportStructuredPdf(preview){return QALiveReport.open(preview,{detail,media,jobId,rpc,getUrl,rounds:completedRounds,history:detail._workflow_history||[]});}
+async function exportStructuredPdf(preview){return QALiveReport.open(preview,{detail:{...detail,assignments:detail.assignments.filter(a=>!a._catalogRead)},media,jobId,rpc,getUrl,rounds:completedRounds,history:detail._workflow_history||[]});}
 async function legacyStructuredPdf(preview){
  if(!detail)throw new Error('ยังโหลดข้อมูลใบงานไม่ครบ');
  const doc=preview.document;
@@ -674,7 +739,8 @@ $('pdfButton').onclick=()=>{const w=window.open('','_blank');if(!w){setNote('ก
 
 async function boot(){for(let i=0;i<160&&!QA.profile;i++)await new Promise(r=>setTimeout(r,100));if(!QA.profile){setNote('Login ไม่พร้อม',true);detailState('error');return;}const params=new URLSearchParams(location.search);
  if(params.get('notification')==='1'&&/^[a-f\d-]{36}$/i.test(params.get('assignment')||'')){
-  if(await render({assignmentId:params.get('assignment')}))await window.QAReadState?.markOpened(detail);
- }else if(await render())await window.QAReadState?.markOpened(detail);}
+  if(!await render({assignmentId:params.get('assignment')}))return;
+ }else if(!await render())return;
+ if(!detail._catalogOnly)await window.QAReadState?.markOpened({...detail,assignments:detail.assignments.filter(a=>!a._catalogRead)});}
 boot();
 })();
