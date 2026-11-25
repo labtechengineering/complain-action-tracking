@@ -1,4 +1,6 @@
 /* Web Push only. Normal application pages continue to load from the network. */
+self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+
 self.addEventListener('push', event => {
   let data;
   try { data = event.data?.json(); } catch { return; }
@@ -7,7 +9,10 @@ self.addEventListener('push', event => {
   url.searchParams.set('id', data.job);
   url.searchParams.set('notification', '1');
   if (/^[A-Za-z0-9_-]{1,30}$/.test(data.department || '')) url.searchParams.set('department', data.department);
-  if (/^[a-f\d-]{36}$/i.test(data.tag?.slice(5) || '')) url.searchParams.set('assignment', data.tag.slice(5));
+  const assignment = data.assignment || (typeof data.tag === 'string' && data.tag.slice(5));
+  if (/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(assignment || '')) {
+    url.searchParams.set('assignment', assignment);
+  }
   event.waitUntil(self.registration.showNotification(data.title.slice(0, 120), {
     body: 'แตะเพื่อเปิดรายละเอียดใน Complain',
     icon: new URL('web-push-icon-192.png', self.registration.scope).href,
