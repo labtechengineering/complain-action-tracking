@@ -3,21 +3,32 @@
  #backDashboard,#allJobFilters[hidden]{display:none!important}
  html[data-dashboard-view="all"] :is(.charts,.cards,#viewAll,#issueSummary){display:none!important}
  html[data-dashboard-view="all"] #backDashboard{display:inline-block!important;margin-bottom:8px;color:#255e8b;text-decoration:underline}
- #allJobFilters.controls{display:flex;flex-wrap:nowrap;justify-content:flex-start;align-items:center;overflow-x:auto;max-width:100%;gap:8px}
- #allJobFilters [hidden]{display:none!important}
- #allJobFilters>.job-filter{display:inline-flex;flex:none;align-items:center;gap:5px;margin:0;white-space:nowrap}
- #allJobFilters>:is(input,button){flex:none;white-space:nowrap}
- #allJobFilters .job-filter select{max-width:145px}
- #allJobFilters #dashSearch{width:150px;max-width:150px}
+ #allJobFilters.controls{display:flex;justify-content:flex-start;align-items:flex-end;gap:8px}
+ #allJobFilters [hidden],#activeJobFilters[hidden]{display:none!important}
+ #allJobFilters .job-filter{display:grid;gap:3px;margin:0;min-width:0;font-size:13px;line-height:1.4}
+ #allJobFilters .job-filter :is(select,input){max-width:100%;width:180px;min-width:0}
+ #allJobFilters .job-filter-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+ #activeJobFilters{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 0 8px}
+ #activeJobFilters button{padding:3px 8px;font-size:12px;border-radius:20px}
  .dashboard-compact .charts{--qa-dashboard-chart-height:250px}
  .dashboard-compact .charts>.panel{height:var(--qa-dashboard-chart-height);min-height:0;min-width:0;display:flex;flex-direction:column}
  .dashboard-compact .charts .bargraph{flex:1;min-height:0;height:auto!important}
  .dashboard-compact .charts .legend{flex:none}
  .dashboard-compact .charts .donutpanel .donut-layout{flex:1;min-height:0!important;margin-top:0;flex-wrap:nowrap}
  .dashboard-compact .charts :is(.bar-total,.bar-label){flex-shrink:0}
- .dashboard-compact .bar-rail{min-height:0;width:100%;flex:1;display:flex;justify-content:center;align-items:flex-end}
+ .dashboard-compact .bar-rail{min-height:0;width:100%;flex:1;display:flex;justify-content:center;align-items:flex-end;margin-top:22px}
+ .dashboard-compact .bar-fill{position:relative;width:clamp(24px,48%,49px)}
+ .dashboard-compact .bar-fill .bar-stack{width:100%;max-width:none;height:100%}
+ .dashboard-compact .bar-fill .bar-total{position:absolute;inset-inline-start:50%;bottom:100%;transform:translateX(-50%);height:20px;line-height:20px;padding:0;z-index:1}
  .dashboard-compact .bar-rail .bar-segment{min-height:0}
- #issueSummary{margin:8px 0 0}
+ #issueSummary{margin:7px 0 0;padding:0;border:0;background:transparent}
+ #issueSummary>summary{width:max-content;max-width:100%;padding:3px 5px;list-style-position:inside;font-size:13px;font-weight:600!important;color:inherit}
+ #issueSummary[open]{padding:7px 10px 10px;border:1px solid #e2e8f0;background:#fff;color:#24354b}
+ #issueSummary[open] .qa-issue-ring{--qa-issue-surface:#fff}
+ @media(max-width:480px){
+  #allJobFilters .job-filter{flex:1 1 130px}
+  #allJobFilters .job-filter :is(select,input){width:100%}
+ }
  @media(max-width:400px){
   .dashboard-compact .charts .donut-wrap{flex:0 0 100px;min-width:0}
   .dashboard-compact .charts .donut{width:100px;height:100px}
@@ -48,19 +59,25 @@
 .workflow-notice{display:flex;align-items:flex-start;gap:5px;margin-top:5px;font-size:12px;line-height:1.4;white-space:normal}.workflow-notice svg{flex-shrink:0;margin-top:1px}.workflow-notice.action-required{color:#b42318}.workflow-notice.informative{color:#64748b}</style><style>.listhead .list-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.list-actions #exportExcel{background:#193b60;color:#fff;border:1px solid #193b60;font-weight:600}.list-actions #exportExcel:disabled{opacity:.6;cursor:wait}.list-actions #exportExcel[hidden]{display:none!important}#excelExportStatus:empty{display:none}#excelExportStatus{margin:8px 0;font-size:13px;overflow-wrap:anywhere}</style><link rel="manifest" href="web-push.webmanifest"><link rel="apple-touch-icon" href="web-push-icon-192.png"><link rel="stylesheet" href="issue-classification.css?v=r16"></head><body class="qa-auth-loading dashboard-compact"><main class="main">
 <header><a id="backDashboard" href="dashboard.html?from=all-jobs">← กลับหน้าหลัก</a><h1>Complaint &amp; Action Request Dashboard</h1><p id="welcome" class="welcome">สวัสดีผู้ใช้งาน</p></header>
 <div id="allJobFilters" class="controls" role="group" aria-label="ตัวกรองงานทั้งหมด" tabindex="0" hidden>
- <label class="job-filter">ขอบเขต <select id="dashScope"><option value="all">ทุกแผนก</option></select></label>
- <label class="job-filter">แผนกรับเรื่อง <select id="departmentFilter"><option value="">ทุกแผนก</option></select></label>
- <label class="job-filter">สถานะ <select id="allJobsStatus"><option value="all">ทุกสถานะ</option><option value="IN_PROGRESS">กำลังดำเนินงาน</option><option value="WAITING_REVIEW">รอตรวจสอบ</option><option value="CLOSED">สำเร็จ</option><option value="CANCELLED">ยกเลิก</option></select></label>
- <label class="job-filter">ประเภทปัญหา <select id="categoryFilter"><option value="">ทุกประเภท</option></select></label>
- <label class="job-filter">ความรุนแรง <select id="severityFilter"><option value="">ทุกระดับ</option></select></label>
- <label class="job-filter">ปัญหาเก่า / ใหม่ <select id="occurrenceFilter"><option value="">ทั้งสองแบบ</option></select></label>
- <label class="job-filter">ช่วงเวลา <select id="filter"><option value="all">ทั้งหมด</option><option value="day">รายวัน</option><option value="week">รายสัปดาห์</option><option value="month">รายเดือน</option><option value="year">รายปี</option></select></label>
+ <label class="job-filter"><span>หัวข้อการค้นหา</span>
+  <select id="filterTopic">
+   <option value="search">คำค้น</option><option value="scope">ขอบเขตงาน</option><option value="department">แผนกรับเรื่อง</option><option value="status">สถานะ</option><option value="category">ประเภทปัญหา</option><option value="severity">ความรุนแรง</option><option value="occurrence">ปัญหาเก่า / ใหม่</option><option value="period">ช่วงเวลา</option>
+  </select>
+ </label>
+ <label class="job-filter" data-filter-field="scope" hidden><span>เรื่องที่ค้นหา</span><select id="dashScope"><option value="all">ทุกแผนก</option></select></label>
+ <label class="job-filter" data-filter-field="department" hidden><span>เรื่องที่ค้นหา</span><select id="departmentFilter"><option value="">ทุกแผนก</option></select></label>
+ <label class="job-filter" data-filter-field="status" hidden><span>เรื่องที่ค้นหา</span><select id="allJobsStatus"><option value="all">ทุกสถานะ</option><option value="IN_PROGRESS">กำลังดำเนินงาน</option><option value="WAITING_REVIEW">รอตรวจสอบ</option><option value="CLOSED">สำเร็จ</option><option value="CANCELLED">ยกเลิก</option></select></label>
+ <label class="job-filter" data-filter-field="category" hidden><span>เรื่องที่ค้นหา</span><select id="categoryFilter"><option value="">ทุกประเภท</option></select></label>
+ <label class="job-filter" data-filter-field="severity" hidden><span>เรื่องที่ค้นหา</span><select id="severityFilter"><option value="">ทุกระดับ</option></select></label>
+ <label class="job-filter" data-filter-field="occurrence" hidden><span>เรื่องที่ค้นหา</span><select id="occurrenceFilter"><option value="">ทั้งสองแบบ</option></select></label>
+ <label class="job-filter" data-filter-field="period" hidden><span>เรื่องที่ค้นหา</span><select id="filter"><option value="all">ทั้งหมด</option><option value="day">รายวัน</option><option value="week">รายสัปดาห์</option><option value="month">รายเดือน</option><option value="year">รายปี</option></select></label>
  <input id="day" type="date" aria-label="วันที่แจ้ง" hidden><input id="week" type="week" aria-label="สัปดาห์ที่แจ้ง" hidden><input id="month" type="month" aria-label="เดือนที่แจ้ง" hidden><input id="year" type="number" min="2020" max="2100" aria-label="ปีที่แจ้ง" hidden>
- <input id="dashSearch" type="search" placeholder="ค้นหางาน" aria-label="ค้นหางาน">
- <button id="showSeverityGuide" type="button" class="legend-action qa-severity-guide" aria-haspopup="dialog">เกณฑ์ S1–S4</button>
+ <label class="job-filter" data-filter-field="search" hidden><span>เรื่องที่ค้นหา</span><input id="dashSearch" type="search" placeholder="พิมพ์คำค้น"></label>
+ <div class="job-filter-actions"><button id="showSeverityGuide" hidden type="button" class="legend-action qa-severity-guide" aria-haspopup="dialog">เกณฑ์ S1–S4</button>
  <button id="clearAllJobFilters" type="button" class="secondary">ล้างตัวกรอง</button>
- <button id="refresh" type="button">แสดงข้อมูล</button>
+ <button id="refresh" type="button">แสดงข้อมูล</button></div>
 </div>
+<div id="activeJobFilters" aria-label="ตัวกรองที่ใช้อยู่" hidden></div>
 <div class="cards"><button class="stat active" data-status="all"><span>ปัญหาทั้งหมด</span><strong id="nTotal">—</strong></button><button class="stat" data-status="IN_PROGRESS"><span>กำลังดำเนินการ</span><strong id="nProgress">—</strong></button><button class="stat" data-status="WAITING_REVIEW"><span>รอตรวจสอบ</span><strong id="nReview">—</strong></button><button class="stat" data-status="CLOSED"><span>สำเร็จ</span><strong id="nDone">—</strong></button></div>
 <div class="charts"><section class="panel barpanel"><h2>จำนวนงาน</h2><div id="barLegend" class="legend"></div><div class="bargraph"><div id="axis" class="axis"></div><div id="plot" class="plot"></div></div></section><section class="panel donutpanel"><h2>สถานะงาน</h2><div class="donut-layout"><div class="donut-wrap"><div id="donut" class="donut"><div class="donut-center"><strong id="donutTotal">0</strong><span class="donut-title">สถานะงาน</span><small>งาน</small></div></div></div><div id="donutLegend" class="donut-legend"></div></div></section></div>
 <details id="issueSummary" class="qa-issue-summary">
@@ -76,4 +93,4 @@
  <table><thead><tr><th scope="col">ระดับ</th><th scope="col">ความรุนแรง</th><th scope="col">การจัดการ</th><th scope="col">กำหนดเวลา</th></tr></thead><tbody></tbody></table>
  <form method="dialog"><button class="secondary">ปิด</button></form>
 </dialog>
-</main><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r16-dashboard-2" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
+</main><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r16-dashboard-3" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>

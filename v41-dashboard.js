@@ -119,15 +119,33 @@ function renderCharts(counts){
  const max=Math.max(1,...depts.map(d=>Object.values(byDept.get(d)).reduce((x,y)=>x+y,0)));
  const ticks=Math.min(4,max);
  $('axis').innerHTML=Array.from({length:ticks+1},(_,i)=>`<span>${Math.round(max*(ticks-i)/ticks)}</span>`).join('');
- $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action" data-chart-status="${s}" title="ดูงานทั้งหมด · ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
- $('plot').innerHTML=depts.length?depts.map(d=>{const cc=byDept.get(d),total=Object.values(cc).reduce((a,b)=>a+b,0);
- const seg=statuses.map(([s,label,color])=>{const n=cc[s]||0;return n?`<button type="button" class="bar-segment" data-chart-status="${s}" data-chart-dept="${safe(d)}" title="${safe(d)} / ${safe(label)}: ${n} ปัญหา" aria-label="กรอง ${safe(d)} สถานะ ${safe(label)} ${n} ปัญหา" style="background:${color};height:${n/total*100}%"></button>`:''}).join('');return `<div class="bar-item"><button class="bar-total chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${total}</button><div class="bar-rail"><div class="bar-stack" style="height:${total/max*100}%">${seg}</div></div><button class="bar-label chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${safe(d)}</button></div>`}).join(''):`<div class="empty">${safe(receiverError||'ยังไม่ได้เปิดฝ่ายรับเรื่องใน Settings')}</div>`;
+ $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action" data-chart-status="${s}" title="กรอง ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
+ $('plot').innerHTML=depts.length?depts.map(department=>{
+  const counts=byDept.get(department);
+  const total=Object.values(counts).reduce((sum,count)=>sum+count,0);
+  const dept=safe(department);
+  const segments=statuses.map(([status,label,color])=>{
+   const count=counts[status]||0;
+   if(!count)return '';
+   return `<button type="button" class="bar-segment" data-chart-status="${status}" data-chart-dept="${dept}"
+    title="${dept} / ${safe(label)}: ${count} ปัญหา" aria-label="กรอง ${dept} สถานะ ${safe(label)} ${count} ปัญหา"
+    style="background:${color};height:${count/total*100}%"></button>`;
+  }).join('');
+  return `<div class="bar-item">
+   <div class="bar-rail"><div class="bar-fill" style="height:${total/max*100}%">
+    <button type="button" class="bar-total chart-dept" data-chart-dept="${dept}" title="กรองแผนก ${dept}">${total}</button>
+    <div class="bar-stack">${segments}</div>
+   </div></div>
+   <button type="button" class="bar-label chart-dept" data-chart-dept="${dept}" title="กรองแผนก ${dept}">${dept}</button>
+  </div>`;
+ }).join(''):`<div class="empty">${safe(receiverError||'ยังไม่ได้เปิดฝ่ายรับเรื่องใน Settings')}</div>`;
  const countTotal=statuses.reduce((sum,[s])=>sum+(counts[s]||0),0);
  let pos=0;const parts=statuses.map(([s,label,color])=>{const n=counts[s]||0,from=pos;pos+=countTotal?n/countTotal*100:0;return {s,label,color,n,from,to:pos}});
  $('donut').style.background=countTotal?`conic-gradient(${parts.filter(p=>p.n).map(p=>`${p.color} ${p.from}% ${p.to}%`).join(',')})`:'#e4e8ef';
  $('donutTotal').textContent=countTotal.toLocaleString('th-TH');
- $('donutLegend').innerHTML=parts.map(p=>`<button type="button" class="legend-row legend-action" data-chart-status="${p.s}" title="ดูงานทั้งหมด · ${safe(p.label)}"><span><i class="dot" style="background:${p.color}"></i>${p.label}</span><b class="legend-values"><span class="legend-count">${p.n}</span><span class="legend-percent">(${countTotal?(p.n/countTotal*100).toFixed(1):'0.0'}%)</span></b></button>`).join('');
+ $('donutLegend').innerHTML=parts.map(p=>`<button type="button" class="legend-row legend-action" data-chart-status="${p.s}" title="กรอง ${safe(p.label)}"><span><i class="dot" style="background:${p.color}"></i>${p.label}</span><b class="legend-values"><span class="legend-count">${p.n}</span><span class="legend-percent">(${countTotal?(p.n/countTotal*100).toFixed(1):'0.0'}%)</span></b></button>`).join('');
  $('donut').dataset.parts=JSON.stringify(parts.filter(p=>p.n).map(({s,from,to})=>({s,from,to})));
+ syncHomeChartSelection();
 }
 
 let issueReadStates=new Map();
@@ -256,8 +274,13 @@ function initIssueSummary(){
 
 function renderRows(){
  const entries=base.flatMap(issueRowsFor);
- const filtered=(allJobsMode?entries.filter(e=>periodMatch({...e.job,issueReportedAt:e.issue.reported_at})
-  &&rowMatchesChart(e)&&issueFieldsMatch(e)):entries).sort(compareLatestIssueRows);
+ const filtered=entries.filter(entry=>rowMatchesChart(entry)&&(!allJobsMode||
+  periodMatch({...entry.job,issueReportedAt:entry.issue.reported_at})&&issueFieldsMatch(entry))).sort(compareLatestIssueRows);
+ if(allJobsMode)renderActiveCatalogFilters();
+ else{
+  const status=statuses.find(([code])=>code===selected)?.[1];
+  $('listTitle').textContent=[selectedDept,status].filter(Boolean).join(' · ')||'ปัญหาแจ้งล่าสุด';
+ }
  if(!allJobsMode&&$('issueSummary').open)renderIssueCharts(entries);
  const latestCount=compactLatest?.matches?5:6;
  const count=allJobsMode?pageSize:latestCount;
@@ -291,12 +314,45 @@ function renderRows(){
 
 let returningView=null;
 function rememberDashboard(){
- if(!allJobsMode)window.QAReturn?.saveDashboard({scrollY:Math.max(0,window.scrollY||0)});
+ if(!allJobsMode)window.QAReturn?.saveDashboard({selected,selectedDept,scrollY:Math.max(0,window.scrollY||0)});
 }
-function updatePeriod(){
- const period=$('filter').value;
- for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==period;
- page=0;renderRows();
+const periodKinds=['day','week','month','year'];
+function showCatalogTopic(){
+ const topic=$('filterTopic').value;
+ for(const label of $('allJobFilters').querySelectorAll('[data-filter-field]')){
+  label.hidden=label.dataset.filterField!==topic;
+ }
+ for(const kind of periodKinds)$(kind).hidden=topic!=='period'||$('filter').value!==kind;
+ $('showSeverityGuide').hidden=topic!=='severity';
+ renderActiveCatalogFilters();
+}
+function updatePeriod(){showCatalogTopic();page=0;renderRows();}
+function renderActiveCatalogFilters(){
+ const host=$('activeJobFilters'),topic=$('filterTopic');
+ host.replaceChildren();
+ let active=0;
+ for(const option of topic.options){
+  const key=option.value;
+  const control=$('allJobFilters').querySelector('[data-filter-field="'+key+'"] :is(input,select)');
+  const initial=['scope','status','period'].includes(key)?'all':'';
+  const value=control.value.trim();
+  if(!value||value===initial)continue;
+  active++;
+  if(key===topic.value)continue;
+  const period=key==='period'&&periodKinds.includes(value)?' '+$(value).value:'';
+  const label=option.textContent+' · '+(control.selectedOptions?.[0]?.textContent||value)+period;
+  const chip=document.createElement('button');
+  chip.type='button';chip.className='secondary';chip.textContent=label+' ×';
+  chip.setAttribute('aria-label','ล้างตัวกรอง '+label);
+  chip.onclick=()=>{
+   control.value=initial;
+   control.dispatchEvent(new Event(key==='search'?'input':'change'));
+   (host.querySelector('button')||topic).focus();
+  };
+  host.append(chip);
+ }
+ host.hidden=!host.childElementCount;
+ $('clearAllJobFilters').hidden=!active;
 }
 function initExcel(){
  const profile=QA.profile||{},role=String(profile.role||'').toLowerCase(),button=$('exportExcel');
@@ -347,7 +403,7 @@ function initCatalogFilters(){
  $('year').value=date.year;
  $('week').value=weekKey(today);
  $('filter').onchange=updatePeriod;
- for(const kind of ['day','week','month','year'])$(kind).onchange=updatePeriod;
+ for(const kind of periodKinds)$(kind).onchange=updatePeriod;
 
  status.onchange=()=>{selected=status.value;page=0;renderRows();};
  $('departmentFilter').onchange=event=>{selectedDept=event.target.value;page=0;renderRows();};
@@ -362,9 +418,14 @@ function initCatalogFilters(){
   scopes.value=$('filter').value=status.value=selected='all';
   selectedDept=selectedCategory='';
   for(const id of ['departmentFilter','categoryFilter','severityFilter','occurrenceFilter'])$(id).value='';
-  for(const kind of ['day','week','month','year'])$(kind).hidden=true;
+  showCatalogTopic();
   page=0;render();
  };
+ const topic=$('filterTopic');
+ topic.value=['category','severity','occurrence','department','status','scope']
+  .find(key=>dashboardQuery.has(key))||'search';
+ topic.onchange=showCatalogTopic;
+ showCatalogTopic();
  $('allJobFilters').hidden=false;
 }
 function updateCatalogOptions(){
@@ -383,11 +444,30 @@ function updateCatalogOptions(){
   control.replaceChildren(control.options[0],...order.map(code=>new Option(labelFor(code),code)));
   control.value=current;
  }
+ renderActiveCatalogFilters();
+}
+function syncHomeChartSelection(){
+ for(const control of document.querySelectorAll('.charts [data-chart-status],.charts [data-chart-dept],.stat')){
+  const status=control.dataset.chartStatus||control.dataset.status||'all';
+  const department=control.dataset.chartDept||'';
+  const active=status===selected&&department===selectedDept;
+  control.setAttribute('aria-pressed',String(active));
+  control.classList.toggle(control.classList.contains('stat')?'active':'selected',active);
+ }
+}
+function filterHomeFromChart(status='all',department=''){
+ const clear=status===selected&&department===selectedDept;
+ selected=clear?'all':status;
+ selectedDept=clear?'':department;
+ page=0;
+ syncHomeChartSelection();
+ renderRows();
+ $('listTitle').scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
 }
 function bindHomeCharts(){
  document.querySelector('.charts').addEventListener('click',event=>{
   const target=event.target.closest('[data-chart-status],[data-chart-dept]');
-  if(target){viewFilteredJobs({status:target.dataset.chartStatus,department:target.dataset.chartDept});return;}
+  if(target){filterHomeFromChart(target.dataset.chartStatus,target.dataset.chartDept);return;}
   const ring=event.target.closest('#donut');
   if(!ring||event.target.closest('.donut-center'))return;
   const rect=ring.getBoundingClientRect();
@@ -396,9 +476,9 @@ function bindHomeCharts(){
   if(distance<rect.width*.32||distance>rect.width*.52)return;
   const angle=((Math.atan2(x,-y)*180/Math.PI+360)%360)/3.6;
   const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from&&angle<p.to);
-  if(part)viewFilteredJobs({status:part.s});
+  if(part)filterHomeFromChart(part.s);
  });
- document.querySelectorAll('.stat').forEach(el=>el.onclick=()=>viewFilteredJobs({status:el.dataset.status}));
+ document.querySelectorAll('.stat').forEach(el=>el.onclick=()=>filterHomeFromChart(el.dataset.status));
 }
 function init(){
  initExcel();
@@ -418,7 +498,12 @@ function init(){
    const state=window.QAReturn?.readDashboard();
    if(state)returningView={state};
   }
-  if(returningView)window.QAReturn?.showMessage(returningView.message);
+  if(returningView){
+   const saved=returningView.state;
+   if(statuses.some(([key])=>key===saved?.selected))selected=saved.selected;
+   if(typeof saved?.selectedDept==='string')selectedDept=saved.selectedDept;
+   window.QAReturn?.showMessage(returningView.message);
+  }
   document.addEventListener('click',event=>{
    const link=event.target.closest('a[href]');
    if(!link)return;
