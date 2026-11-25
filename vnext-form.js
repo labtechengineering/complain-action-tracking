@@ -91,7 +91,7 @@
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
  function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
- function render(){const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
+ function render(){for(const p of problems)p.releasePreview?.();const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
   const opt=[...$('category').options].filter(x=>x.value).map(x=>`<option value="${esc(x.value)}">${esc(x.textContent)}</option>`).join('');
   box.innerHTML=`<div class="vn-row" style="align-items:center"><h3>ปัญหา ${i+1}</h3>${problems.length>1?'<button type="button" class="vn-btn vn-remove">ลบปัญหานี้</button>':''}</div>
@@ -100,8 +100,8 @@
   <label>รายละเอียดปัญหา *<textarea class="vn-detail" maxlength="20000" required></textarea></label>
   <label class="vn-request-due">วันกำหนดเสร็จ *<input type="date" required></label>
   <strong>ฝ่ายรับเรื่อง * (เลือกได้มากกว่า 1)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
-  <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="image/jpeg,image/png,image/webp" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
-  <p class="vn-files"></p><div class="vn-file-grid"></div>`;
+  <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="${QAUploadPhoto.accept}" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
+  <p class="vn-files" role="status"></p><div class="vn-file-grid"></div>`;
   box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;box.querySelector('.vn-request-due input').value=p.requestDueDate;
   const category=box.querySelector('.vn-category'),other=box.querySelector('.vn-other-detail'),otherLabel=box.querySelector('.vn-other-label');
   other.value=p.other||'';
@@ -109,9 +109,34 @@
   category.onchange=()=>{p.category=category.value;syncOther();if(other.required)other.focus();};other.oninput=()=>p.other=other.value;syncOther();
 
   for(const ch of box.querySelectorAll('.vn-dept'))ch.checked=p.departments.includes(ch.value);
-  box.querySelector('.vn-images').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.images.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
-  box.querySelector('.vn-video').onchange=e=>{try{const files=[...e.target.files];window.QAMediaPicker.validate([...p.images,...p.video,...files]);p.video.push(...files);updateFiles();}catch(e){status(e.message,true);}finally{e.target.value='';}};
-  let previewUrls=[];function updateFiles(){previewUrls.forEach(u=>URL.revokeObjectURL(u));previewUrls=[];box.querySelector('.vn-files').textContent=`${p.images.length} รูป · ${p.video.length} วิดีโอ`;
+  const imageInput=box.querySelector('.vn-images'),videoInput=box.querySelector('.vn-video');
+  const selectFiles=async(input,files)=>{
+   if(busy||p.preparing||!files.length)return;
+   try{
+    let prepared=QAMediaPicker.prepare([...p.images,...p.video],files);
+    if(!Array.isArray(prepared)){
+     p.preparing=true;
+     p.refreshFiles();
+     prepared=await prepared;
+    }
+    if(problems.includes(p))(input===imageInput?p.images:p.video).push(...prepared);
+   }catch(e){if(problems.includes(p))status(err(e),true);}
+   finally{
+    p.preparing=false;
+    if(problems.includes(p))p.refreshFiles();
+    if(!problems.some(problem=>problem.preparing)&&$('vnStatus').textContent===QAMediaPicker.preparingMessage)status('');
+   }
+  };
+  for(const input of [imageInput,videoInput])input.onchange=()=>{
+   const files=[...input.files];input.value='';void selectFiles(input,files);
+  };
+  let previewUrls=[];
+  p.releasePreview=()=>{previewUrls.forEach(u=>URL.revokeObjectURL(u));previewUrls=[];};
+  p.refreshFiles=updateFiles;
+  function updateFiles(){
+   p.releasePreview();
+   imageInput.disabled=videoInput.disabled=!!p.preparing;
+   box.querySelector('.vn-files').textContent=p.preparing?QAMediaPicker.preparingMessage:`${p.images.length} รูป · ${p.video.length} วิดีโอ`;
   const grid=box.querySelector('.vn-file-grid');grid.replaceChildren();
   const files=[...p.images.map((f,i)=>({f,kind:'image',i})),...p.video.map((f,i)=>({f,kind:'video',i}))];
   files.forEach(({f,kind,i})=>{
@@ -125,7 +150,7 @@
    grid.append(item);
   });
  }
-  updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();problems.splice(problems.indexOf(p),1);render();});host.append(box);
+  updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();p.releasePreview();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
  function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
@@ -224,6 +249,7 @@
   baseSubmit.textContent='ลองส่งไฟล์แนบ / LINE อีกครั้ง';
  }
  async function submit(e){e.preventDefault();e.stopImmediatePropagation();if(busy)return;
+ if(problems.some(p=>p.preparing)){status(QAMediaPicker.preparingMessage);return;}
  if(new URLSearchParams(location.search).has('edit')){status('ใบงานเก่าใช้การแก้ไขเดิม กรุณากลับไปหน้าใบงาน',true);return;}
  busy=true;baseSubmit.disabled=true;try{
   let jobId=createdId;

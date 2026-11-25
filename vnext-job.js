@@ -29,18 +29,18 @@ async function openRequestHeaderEditor(){
   form.querySelector('.request-issues').append(card);
   const old=media.filter(m=>m.scope==='ISSUE'&&String(m.issue_id)===String(issue.issue_id));
   if(old.length){card.querySelector('.request-existing-media').innerHTML='<b>ไฟล์เดิม</b>'+await mediaFor([issue.issue_id],null,false);for(const m of old){const label=document.createElement('label');label.textContent='หมายเหตุไฟล์ '+(old.indexOf(m)+1);const input=document.createElement('textarea');input.value=m.note||'';input.maxLength=2000;label.append(input);card.querySelector('.request-existing-media').append(label);notes.push({id:m.attachment_id,input,saved:m.note||''});}}
-  row.picker=QAMediaPicker.mount(card.querySelector('.request-issue-picker'),{entries:row.entries,existing:{images:old.filter(m=>m.kind==='IMAGE').length,videos:old.filter(m=>m.kind==='VIDEO').length},onChange:()=>dirty=true,onError:m=>feedback(m,true)});pickers.push(row.picker);
+  row.picker=QAMediaPicker.mount(card.querySelector('.request-issue-picker'),{entries:row.entries,existing:{images:old.filter(m=>m.kind==='IMAGE').length,videos:old.filter(m=>m.kind==='VIDEO').length},onChange:()=>{dirty=true;if(form.querySelector('.request-editor-status').textContent===QAMediaPicker.preparingMessage&&!pickers.some(p=>p.isPreparing()))feedback('');},onError:m=>feedback(m,true)});pickers.push(row.picker);
   return row;
  }
  for(const issue of values.issues||[])await addCard(issue);
  form.querySelector('.request-add-issue').onclick=async()=>{if(busy||savedResult)return;const row=await addCard();dirty=true;row.card.scrollIntoView({behavior:'smooth',block:'center'});row.card.querySelector('select').focus();};
  form.querySelector('.request-header-cancel').onclick=()=>{if(busy)return;if(dirty&&!confirm(savedResult?'ข้อมูลใบแจ้งบันทึกแล้ว แต่ยังมีไฟล์ค้างส่ง ต้องการปิดฟอร์มหรือไม่?':'ยกเลิกข้อมูลที่แก้ไขและไฟล์ที่ยังไม่ได้บันทึก?'))return;form._dispose();form.remove();if(savedResult)void render();};
- form.onsubmit=async event=>{event.preventDefault();if(busy)return;if(!savedResult&&!form.reportValidity())return;
+ form.onsubmit=async event=>{event.preventDefault();if(busy)return;if(pickers.some(p=>p.isPreparing())){feedback(QAMediaPicker.preparingMessage);return;}if(!savedResult&&!form.reportValidity())return;
   let payload;if(!savedResult){const issues=cards.map(({card,issue})=>({issue_id:issue.issue_id||null,category_code:card.querySelector('.request-category').value,category_other:card.querySelector('.request-other').value.trim(),description:card.querySelector('.request-description').value.trim(),request_due_date:card.querySelector('.request-issue-due').value||null,departments:[...card.querySelectorAll('.request-receivers input:checked')].map(n=>n.value)}));
    if(!issues.length||issues.some(i=>!i.category_code||!i.description||!i.departments.length)){feedback('กรอกประเภท รายละเอียด และฝ่ายรับเรื่องอย่างน้อย 1 แผนกให้ครบทุกปัญหา',true);return;}
    payload={header:Object.fromEntries(['source_type','serial_no','customer_name','country','requester_remark'].map(k=>[k,form.elements.namedItem(k).value])),issues};
   }
-  busy=true;const button=form.querySelector('[type=submit]');button.disabled=true;form.querySelector('.request-add-issue').disabled=true;form.querySelector('.request-header-cancel').disabled=true;
+  busy=true;const button=form.querySelector('[type=submit]');button.disabled=true;for(const input of form.querySelectorAll('.request-issue-picker input[type=file]'))input.disabled=true;form.querySelector('.request-add-issue').disabled=true;form.querySelector('.request-header-cancel').disabled=true;
   try{
    if(!savedResult){feedback('กำลังบันทึกใบแจ้ง...');savedResult=await rpc('qa_request_full_v1',{p_job_id:jobId,p_values:payload,p_expected_version:values.version,p_expected_snapshot:values.snapshot});
     for(const [n,row] of cards.entries())row.issue={...row.issue,...savedResult.saved_issues[n]};queueRequestEvents(savedResult.receiver_events||[]);
@@ -50,7 +50,7 @@ async function openRequestHeaderEditor(){
    for(const row of cards){for(const entry of row.entries)await uploadRequestEntry(row.issue.issue_number,entry);row.picker.render();}
    for(const note of notes)if(note.input.value!==note.saved){await rpc('qa_v38_media_set_note',{p_attachment_id:note.id,p_note:note.input.value});note.saved=note.input.value;}
    dirty=false;form._dispose();await render();setNote('บันทึกใบแจ้งและไฟล์แนบเรียบร้อย');await sendRequestLines();
-  }catch(e){feedback((savedResult?'ข้อมูลใบแจ้งบันทึกแล้ว มีไฟล์หรือหมายเหตุที่ยังไม่สำเร็จ กดบันทึกไฟล์ที่ค้างอีกครั้ง: ':'บันทึกไม่สำเร็จ: ')+requestEditError(e),true);button.textContent=savedResult?'บันทึกไฟล์ที่ค้างอีกครั้ง':'บันทึกใบแจ้ง';button.disabled=false;form.querySelector('.request-add-issue').disabled=!!savedResult;form.querySelector('.request-header-cancel').disabled=false;
+  }catch(e){feedback((savedResult?'ข้อมูลใบแจ้งบันทึกแล้ว มีไฟล์หรือหมายเหตุที่ยังไม่สำเร็จ กดบันทึกไฟล์ที่ค้างอีกครั้ง: ':'บันทึกไม่สำเร็จ: ')+requestEditError(e),true);button.textContent=savedResult?'บันทึกไฟล์ที่ค้างอีกครั้ง':'บันทึกใบแจ้ง';button.disabled=false;if(!savedResult)for(const input of form.querySelectorAll('.request-issue-picker input[type=file]'))input.disabled=false;form.querySelector('.request-add-issue').disabled=!!savedResult;form.querySelector('.request-header-cancel').disabled=false;
   }finally{busy=false;}
  };
  $('details').append(form);if($('allIssues'))$('allIssues').hidden=true;form.scrollIntoView({behavior:'smooth',block:'start'});form.elements.namedItem('source_type').focus();
@@ -236,7 +236,7 @@ function guideDetail(context={}){
 }
 
 function detailState(state){const host=$('captureArea');if(host){host.dataset.detailState=state;host.setAttribute('aria-busy',String(state==='loading'));}const loading=$('detailLoading');if(loading)loading.hidden=state!=='loading';$('pdfButton').disabled=state!=='ready';}
-async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
+async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing())){setNote(QAMediaPicker.preparingMessage);return false;}if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
  try{
  // These secured reads use the same job ID and do not depend on one another.
  // Settle every read so optional history errors cannot reject an unread promise.
@@ -384,7 +384,7 @@ async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAl
   state.textContent=persisted?'บันทึกแบบร่างแล้ว — ยังไม่ได้'+sendTarget:'ยังไม่มีแบบร่างที่บันทึก — กรอกข้อมูลแล้วกดบันทึกแบบร่าง หรือ'+sendTarget+'ได้เลย';state.dataset.state=persisted?'draft':'empty';
   for(const field of el.querySelectorAll('.recv,.analysis,.fix,.prevent'))field.addEventListener('input',dirty);
   const currentFiles=media.filter(m=>m.scope==='ASSIGNMENT'&&m.assignment_id===a.assignment_id&&Number(m.response_round||1)===roundNumber);
-  activePickers.push(QAMediaPicker.mount(el.querySelector('.response-picker'),{entries,existing:()=>({images:currentFiles.filter(m=>m.kind==='IMAGE').length,videos:currentFiles.filter(m=>m.kind==='VIDEO').length}),onChange:dirty,onError:message=>setNote(message,true)}));
+  activePickers.push(QAMediaPicker.mount(el.querySelector('.response-picker'),{entries,existing:()=>({images:currentFiles.filter(m=>m.kind==='IMAGE').length,videos:currentFiles.filter(m=>m.kind==='VIDEO').length}),onChange:()=>{dirty();if($('feedback').textContent===QAMediaPicker.preparingMessage&&!activePickers.some(p=>p.isPreparing()))setNote('');},onError:message=>setNote(message,true)}));
   if(saved&&saved.version===a.version||entries.length)dirty();
  }
  if(!canEditCurrent){for(const sel of ['.recv','.analysis','.fix','.prevent']){const textarea=el.querySelector(sel);if(!textarea)continue;const plain=document.createElement('div');plain.className='read-text';plain.textContent=textarea.value||'-';textarea.replaceWith(plain)}}
@@ -395,7 +395,7 @@ async function render(requestedFocus={}){if(window.QAWork&&!await QAWork.flushAl
  (responseHost||issueHost).append(el);
  if(actions.children.length){const outside=document.createElement('div');outside.className='department-action-bar no-print';outside.dataset.assignment=a.assignment_id;outside.append(...Array.from(actions.childNodes));actions.remove();el.append(outside);}
  }
- organizeDetailPanels(issueSheet,issueHost,focusContext.departmentOpen);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
+ organizeDetailPanels(issueSheet,issueHost,focusContext.departmentOpen);QAWork.mount({detail,jobId,notes:loaded[6].value,history:loaded[5].status==='fulfilled'?loaded[5].value:[],root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{if(activePickers.some(p=>p.isPreparing()))throw Error(QAMediaPicker.preparingMessage);const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);await renderHistory(loaded[5]);detailState('ready');guideDetail(focusContext);return true;
  }catch(e){setNote('อ่านใบงานไม่สำเร็จ: '+e.message,true);$('details').textContent='โปรดตรวจสิทธิ์ หรือกลับไปเปิดใบงานเดิม';$('assignments').replaceChildren();detailState('error');return false;}}
 // Each issue is one collapsed list row. Move bound assignment forms between
 // issue folds so a shared response has exactly one live editor and one version.
@@ -552,7 +552,7 @@ let returnWarning='';
 async function returnHome(action){
  returnWarning='';
  if(!window.QAReturn?.isTerminal(action))return false;
- if(responseDrafts.size||[...responseQueues.values()].some(queue=>queue.length)){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีข้อมูลหรือไฟล์ของงานส่วนอื่นที่ยังไม่ได้บันทึก จึงคงหน้านี้ไว้');return false;}
+ if(activePickers.some(p=>p.isPreparing())||responseDrafts.size||[...responseQueues.values()].some(queue=>queue.length)){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีข้อมูลหรือไฟล์ของงานส่วนอื่นที่ยังไม่ได้บันทึก จึงคงหน้านี้ไว้');return false;}
  try{if(JSON.parse(sessionStorage.getItem('qa-full-edit-lines:'+jobId)||'[]').length){setNote(returnWarning='ทำรายการสำเร็จแล้ว แต่ยังมีการแจ้ง LINE ที่ค้าง กรุณากดส่งซ้ำก่อนออกจากหน้านี้',true);return false;}}catch{}
  if(!await QAWork.flushAll()){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ จึงคงหน้านี้ไว้',true);return false;}
  return QAReturn.home(action);
@@ -561,6 +561,7 @@ const pendingAssignmentActions=new Set();
 async function act(a,action,el){
  if(pendingAssignmentActions.has(a.assignment_id))return;
  if(!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ',true);return;}
+ if(activePickers.some(p=>p.isPreparing())){setNote(QAMediaPicker.preparingMessage);return;}
  if(!QAWorkflow.allowed(action,QA.profile,detail,a,{legacyLocked:a._legacyLocked===true})){setNote('บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้ในสถานะปัจจุบัน',true);return;}
  let data={};if(['SAVE_DRAFT','REQUEST_APPROVAL','HEAD_SEND'].includes(action)){data={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:el.querySelector('.analysis').value,corrective_action:el.querySelector('.fix').value,preventive_action:el.querySelector('.prevent').value};}
  if(action==='UNRELATED_REQUEST'){const reason=prompt('แจ้งไม่เกี่ยวข้องกับแผนก '+a.department_code+' ก่อนรับงาน\nครอบคลุมปัญหา '+a.issues.map(i=>i.issue_number).join(', ')+' ที่แผนกนี้ได้รับ\nระบุเหตุผลเพื่อส่งให้หัวหน้าฝ่ายผู้แจ้งพิจารณา');if(!reason?.trim())return;data={reason:reason.trim()};}
@@ -607,12 +608,6 @@ async function adminRollback(a,target){
  try{setNote('กำลังย้อนสถานะ...');await rpc('qa_vnext_admin_rollback_assignment',{p_assignment_id:a.assignment_id,p_target_status:target,p_expected_version:a.version,p_reason:reason.trim()});setNote('ย้อนสถานะเรียบร้อย');await render({assignmentId:a.assignment_id});}
  catch(e){setNote('ย้อนสถานะไม่สำเร็จ: '+e.message,true);}
 }
-async function uploadIssue(issueNumber,files){const imgs=files.filter(f=>f.type.startsWith('image/'));const vids=files.filter(f=>f.type.startsWith('video/'));
- if(imgs.length>5||vids.length>1||imgs.length+vids.length!==files.length)throw new Error('เลือกได้สูงสุด 5 รูปและ 1 วิดีโอ');
- for(const f of files){const limit=f.type.startsWith('image/')?5242880:52428800;if(f.size>limit)throw new Error('ขนาดไฟล์เกิน '+f.name);
- const path=`${QA.profile.user_id}/${crypto.randomUUID()}.${f.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin'}`;
- const {error}=await QA.client.storage.from('qa-vnext-media').upload(path,f,{contentType:f.type,upsert:false});if(error)throw error;
- try{await rpc('qa_vnext_register_attachment',{p_job_id:jobId,p_scope:'ISSUE',p_issue_number:issueNumber,p_assignment_id:null,p_kind:f.type.startsWith('image/')?'IMAGE':'VIDEO',p_path:path,p_mime_type:f.type,p_size_bytes:f.size});}catch(e){try{await QA.client.storage.from('qa-vnext-media').remove([path]);}catch{}throw e;}}}
 async function uploadResponse(assignmentId,entries){
  for(const entry of entries){const file=entry.file;QAMediaPicker.validate([file]);
   if(!entry.attachmentId){const ext=file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin',path=`${QA.profile.user_id}/${crypto.randomUUID()}.${ext}`;

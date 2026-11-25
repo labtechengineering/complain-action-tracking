@@ -20,7 +20,16 @@ function edit(file){return new Promise((resolve,reject)=>{
  const stop=()=>{if(drawing){actions.push(drawing);drawing=null;}drag=null;paint();};canvas.onpointerup=stop;canvas.onpointercancel=stop;
  for(const control of ['.stroke-color','.text-color','.stroke-width','.line-style','.font-size'])$(control).addEventListener('input',()=>{if(selected>=0){snapshot();Object.assign(actions[selected],attrs());}$('.stroke-size').textContent=$('.stroke-width').value;$('.font-size-label').textContent=$('.font-size').value;paint();});
  function cleanup(result){if(finished)return;finished=true;wrapper.remove();css.remove();resolve(result);}
- wrapper.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{const t=b.dataset.tool;if(['select','draw','line','rect','ellipse','text'].includes(t))setTool(t);else if(t==='undo'){if(history.length){actions=JSON.parse(history.pop());selected=-1;paint();}}else if(t==='cancel')cleanup(null);else if(t==='save'){selected=-1;paint();canvas.toBlob(blob=>{if(!blob){reject(Error('บันทึกภาพไม่สำเร็จ'));cleanup(null);return;}cleanup(new File([blob],file.name.replace(/\.[^.]+$/,'')+'-edited.png',{type:'image/png'}));},'image/png');}});
+ wrapper.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{const t=b.dataset.tool;if(['select','draw','line','rect','ellipse','text'].includes(t))setTool(t);else if(t==='undo'){if(history.length){actions=JSON.parse(history.pop());selected=-1;paint();}}else if(t==='cancel')cleanup(null);else if(t==='save'){
+  selected=-1;paint();b.disabled=true;
+  canvas.toBlob(async blob=>{
+   try{
+    if(!blob)throw Error('บันทึกภาพไม่สำเร็จ');
+    const result=new File([blob],file.name.replace(/\.[^.]+$/,'')+'-edited.png',{type:'image/png'});
+    cleanup(await QAUploadPhoto.prepare(result));
+   }catch(error){if(!finished){b.disabled=false;$('.v38-editor-hint').textContent=error.message;}}
+  },'image/png');
+ }});
  setTool('draw');};img.src=url;
 });}
 window.V38ImageEditor={edit};
