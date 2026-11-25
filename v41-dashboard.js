@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 const dashboardQuery=new URLSearchParams(location.search);
 const allJobsMode=dashboardQuery.get('view')==='all';
-const catalogScopes={all:'ทุกแผนก',department:'แผนกของฉัน',mine:'งานของฉัน'};
+const catalogScopes={all:'ทุกแผนก',department:'แผนกของฉัน',mine:'งานของฉัน',received:'งานเข้าแผนก',department_sent:'งานที่แผนกแจ้ง',reported:'งานที่ฉันแจ้ง'};
 const catalogDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'});
 if(allJobsMode)document.documentElement.dataset.dashboardView='all';
 const classification=window.QAIssueClassification;
@@ -28,29 +28,17 @@ function compareLatestIssueRows(a,b){
 }
 
 let all=[],base=[],selected='all',selectedDept='',page=0,receiverCodes=null,receiverError='',globalAggregate=null,summaryRequest=0,loadRequest=0;const pageSize=20;
-// Use the actual rendered header/cards/list height, rather than guessing a screen scale.
-let dashboardFitFrame=0;
-function scheduleDashboardFit(){
- cancelAnimationFrame(dashboardFitFrame);
- dashboardFitFrame=requestAnimationFrame(()=>{
-  const charts=document.querySelector('.charts'),main=document.querySelector('main.main');
-  if(!charts||!main)return;
-  const enabled=document.documentElement.dataset.theme==='soft'&&window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
-  if(!enabled){charts.style.removeProperty('--qa-dashboard-chart-height');return;}
-  if(allJobsMode)return;
-  const currentHeight=charts.getBoundingClientRect().height;
-  const mainBottom=main.getBoundingClientRect().bottom+window.scrollY;
-  const remaining=Math.floor(window.innerHeight-mainBottom+currentHeight-8);
-  const target=Math.max(156,Math.min(340,remaining));
-  const value=target+'px';
-  if(charts.style.getPropertyValue('--qa-dashboard-chart-height')!==value)
-   charts.style.setProperty('--qa-dashboard-chart-height',value);
-  renderCharts(selectedGlobalCounts());
- });
+const compactLatest=window.matchMedia?.('(max-width:767px), (max-height:799px)');
+function viewFilteredJobs(filters={}){
+ const params=new URLSearchParams({view:'all'});
+ for(const [key,value] of Object.entries(filters)){
+  if(value&&value!=='all')params.set(key,value);
+ }
+ location.assign('dashboard.html?'+params);
 }
-function bangkokKey(j){if(allJobsMode&&dt(j))return catalogDate.format(new Date(dt(j)));const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
+function bangkokKey(j){if(dt(j))return catalogDate.format(new Date(dt(j)));const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
-function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=j.issueReportedAt?catalogDate.format(new Date(j.issueReportedAt)):bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
+function periodMatch(j){const type=$('filter').value;if(!allJobsMode||type==='all')return true;const key=j.issueReportedAt?catalogDate.format(new Date(j.issueReportedAt)):bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
 // Work status is held by the receiving department, not qa_jobs.status.
 // OPEN (not yet accepted), IN_PROGRESS, REWORK -> yellow. Only explicit
 // requester acceptance (CLOSED) turns the department green.
@@ -95,27 +83,24 @@ function issueStatusLabel(e,status){
 // status in another department must not satisfy the selected bar segment.
 function rowMatchesChart(e){return e.assignments.some(a=>(!selectedDept||norm(a.department)===norm(selectedDept))&&(selected==='all'||(selected==='CANCELLED'?a.rawStatus===selected:a.chartStatus===selected)));}
 
-function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department), scope=$('dashScope').value;const role=String(p.role||'').toLowerCase();
+function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.department);const role=String(p.role||'').toLowerCase();
  if(allJobsMode){
-  const assignments=enabledAssignments(j);
+  const scope=$('dashScope').value,assignments=enabledAssignments(j);
   if(scope==='department')return norm(j.fromDepartment)===dept&&dept
     ? assignments : assignments.filter(a=>dept&&norm(a.department)===dept);
   if(scope==='mine'&&!j.isRequester)return assignments.filter(a=>a.isMyWork);
+  if(scope==='received')return assignments.filter(a=>dept&&norm(a.department)===dept);
+  if(scope==='department_sent')return dept&&norm(j.fromDepartment)===dept?assignments:[];
+  if(scope==='reported')return j.isRequester?assignments:[];
   return assignments;
  }
  let rows=QAWorkflow.visibleAssignments(p,j,enabledAssignments(j));
  // Origin department may track every receiver on its outgoing job.
  // Receiving departments see only their assignments unless also origin.
  if(role==='user'||role==='department_admin')rows=rows.filter(a=>norm(j.fromDepartment)===dept||norm(a.department)===dept);
- if(scope==='received')return rows.filter(a=>norm(a.department)===dept);
- if(scope==='mine'&&j.isRequester!==true)return [];
- if(scope==='department_sent'&&norm(j.fromDepartment)!==dept)return [];
- if(scope==='review')return rows.filter(a=>a.chartStatus==='WAITING_REVIEW');
- if(scope==='closed')return rows.filter(a=>a.chartStatus==='CLOSED');
  return rows;
 }
-function searchMatch(j){const q=norm($('dashSearch').value);return !q||[j.carCode,j.jobId,j.customerName,j.country,j.serialNo,j.fromDepartment,j.toDepartment,j.problemDetail,j.status,j.location,j.category,...(j.departmentAssignments||[]).flatMap(a=>allJobsMode
- ? [a.department,...a.issues.map(i=>i.description)] : [a.department])].some(v=>norm(v).includes(q));}
+function searchMatch(j){if(!allJobsMode)return true;const q=norm($('dashSearch').value);return !q||[j.carCode,j.jobId,j.customerName,j.country,j.serialNo,j.fromDepartment,j.toDepartment,j.problemDetail,j.status,j.location,j.category,...enabledAssignments(j).flatMap(a=>[a.department,...a.issues.map(i=>i.description)])].some(v=>norm(v).includes(q));}
 function selectedGlobalCounts(){const c={IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0};
  for(const row of globalAggregate?.departments||[]){if(c[row.status]!==undefined)c[row.status]+=Number(row.count)||0;}return c;}
 function render(){base=all.filter(j=>searchMatch(j)&&deptAssignments(j).length>0);
@@ -125,40 +110,24 @@ function render(){base=all.filter(j=>searchMatch(j)&&deptAssignments(j).length>0
  $('nProgress').textContent=globalAggregate?counts.IN_PROGRESS.toLocaleString('th-TH'):'—';
  $('nReview').textContent=globalAggregate?counts.WAITING_REVIEW.toLocaleString('th-TH'):'—';
  $('nDone').textContent=globalAggregate?counts.CLOSED.toLocaleString('th-TH'):'—';
- $('period').textContent='';renderCharts(counts);renderRows();}
+ renderCharts(counts);renderRows();}
 
-function selectStatusCard(status){
- selected=status;selectedDept='';page=0;
- renderCharts(selectedGlobalCounts());renderRows();
-}
-function toggleChartFilter(status='',dept=''){
- const clear=selected===(status||'all')&&selectedDept===dept;
- selected=clear?'all':(status||'all');
- selectedDept=clear?'':dept;
- page=0;renderCharts(selectedGlobalCounts());renderRows();
- document.getElementById('listTitle').scrollIntoView({behavior:'smooth',block:'nearest'});
-}
 function renderCharts(counts){
- // Scale every segment by the same available plot height; counts/proportions stay unchanged.
- const compact=document.documentElement.dataset.theme==='soft'&&window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
- const plotHeight=$('plot').clientHeight;
- const barHeight=compact?Math.max(8,plotHeight-52):178;
  const depts=receiverCodes?[...new Set([...receiverCodes,...(globalAggregate?.departments||[]).map(a=>a.department)])]:[];
  const byDept=new Map(depts.map(d=>[d,{IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0}]));
  for(const e of globalAggregate?.departments||[]){const x=byDept.get(e.department);if(x&&x[e.status]!==undefined)x[e.status]+=Number(e.count)||0;}
  const max=Math.max(1,...depts.map(d=>Object.values(byDept.get(d)).reduce((x,y)=>x+y,0)));
  const ticks=Math.min(4,max);
  $('axis').innerHTML=Array.from({length:ticks+1},(_,i)=>`<span>${Math.round(max*(ticks-i)/ticks)}</span>`).join('');
- $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action ${selected===s&&!selectedDept?'selected':''}" data-chart-status="${s}" title="กรอง ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
+ $('barLegend').innerHTML=statuses.map(([s,label,color])=>`<button type="button" class="legend-action" data-chart-status="${s}" title="ดูงานทั้งหมด · ${safe(label)}"><i style="background:${color}"></i>${label}</button>`).join('');
  $('plot').innerHTML=depts.length?depts.map(d=>{const cc=byDept.get(d),total=Object.values(cc).reduce((a,b)=>a+b,0);
- const seg=statuses.map(([s,label,color])=>{const n=cc[s]||0;return n?`<button type="button" class="bar-segment ${selected===s&&selectedDept===d?'selected':''}" data-chart-status="${s}" data-chart-dept="${safe(d)}" title="${safe(d)} / ${safe(label)}: ${n} ปัญหา" aria-label="กรอง ${safe(d)} สถานะ ${safe(label)} ${n} ปัญหา" style="background:${color};height:${n/max*barHeight}px"><span class="bar-part-count ${(selected===s&&(!selectedDept||selectedDept===d))?'is-visible':''}" style="display:${(selected===s&&(!selectedDept||selectedDept===d))?'block':'none'}" aria-hidden="true">${n}</span></button>`:''}).join('');return `<div class="bar-item"><button class="bar-total chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${total}</button><div class="bar-stack">${seg}</div><button class="bar-label chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${safe(d)}</button></div>`}).join(''):`<div class="empty">${safe(receiverError||'ยังไม่ได้เปิดฝ่ายรับเรื่องใน Settings')}</div>`;
+ const seg=statuses.map(([s,label,color])=>{const n=cc[s]||0;return n?`<button type="button" class="bar-segment" data-chart-status="${s}" data-chart-dept="${safe(d)}" title="${safe(d)} / ${safe(label)}: ${n} ปัญหา" aria-label="กรอง ${safe(d)} สถานะ ${safe(label)} ${n} ปัญหา" style="background:${color};height:${n/total*100}%"></button>`:''}).join('');return `<div class="bar-item"><button class="bar-total chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${total}</button><div class="bar-rail"><div class="bar-stack" style="height:${total/max*100}%">${seg}</div></div><button class="bar-label chart-dept" data-chart-dept="${safe(d)}" title="กรองแผนก ${safe(d)}">${safe(d)}</button></div>`}).join(''):`<div class="empty">${safe(receiverError||'ยังไม่ได้เปิดฝ่ายรับเรื่องใน Settings')}</div>`;
  const countTotal=statuses.reduce((sum,[s])=>sum+(counts[s]||0),0);
  let pos=0;const parts=statuses.map(([s,label,color])=>{const n=counts[s]||0,from=pos;pos+=countTotal?n/countTotal*100:0;return {s,label,color,n,from,to:pos}});
  $('donut').style.background=countTotal?`conic-gradient(${parts.filter(p=>p.n).map(p=>`${p.color} ${p.from}% ${p.to}%`).join(',')})`:'#e4e8ef';
  $('donutTotal').textContent=countTotal.toLocaleString('th-TH');
- $('donutLegend').innerHTML=parts.map(p=>`<button type="button" class="legend-row legend-action ${selected===p.s&&!selectedDept?'selected':''}" data-chart-status="${p.s}" title="คลิกเพื่อกรอง ${safe(p.label)}"><span><i class="dot" style="background:${p.color}"></i>${p.label}</span><b class="legend-values"><span class="legend-count">${p.n}</span><span class="legend-percent">(${countTotal?(p.n/countTotal*100).toFixed(1):'0.0'}%)</span></b></button>`).join('');
+ $('donutLegend').innerHTML=parts.map(p=>`<button type="button" class="legend-row legend-action" data-chart-status="${p.s}" title="ดูงานทั้งหมด · ${safe(p.label)}"><span><i class="dot" style="background:${p.color}"></i>${p.label}</span><b class="legend-values"><span class="legend-count">${p.n}</span><span class="legend-percent">(${countTotal?(p.n/countTotal*100).toFixed(1):'0.0'}%)</span></b></button>`).join('');
  $('donut').dataset.parts=JSON.stringify(parts.filter(p=>p.n).map(({s,from,to})=>({s,from,to})));
- const note=$('chartSelection');if(note)note.textContent='';
 }
 
 let issueReadStates=new Map();
@@ -179,31 +148,24 @@ window.addEventListener('pageshow',e=>{if(e.persisted&&all.length)refreshReadSta
 
 const chartCategoryNames=new Map();
 const departmentPalette=['#466c9f','#27847f','#8363a7','#ad7048','#5e747c','#8d6f9c','#b96063'];
-function issueFieldsMatch(entry, except=''){
+function issueFieldsMatch(entry){
  const severity=$('severityFilter')?.value,occurrence=$('occurrenceFilter')?.value;
- return (!severity||except==='severity'||severity===entry.issue.severity_code)
-  &&(!occurrence||except==='occurrence'||occurrence===entry.issue.occurrence_type)
-  &&(!selectedCategory||except==='category'||selectedCategory===entry.issue.category_code);
+ return (!severity||severity===entry.issue.severity_code)
+  &&(!occurrence||occurrence===entry.issue.occurrence_type)
+  &&(!selectedCategory||selectedCategory===entry.issue.category_code);
 }
-function issueChartButton(text,pressed,action){
+function issueChartButton(text,filters){
  const button=document.createElement('button');
- button.type='button';button.textContent=text;button.setAttribute('aria-pressed',String(pressed));button.onclick=action;
+ button.type='button';button.textContent=text;button.onclick=()=>viewFilteredJobs(filters);
  return button;
-}
-function selectIssueCategory(category,department){
- const clearing=selectedCategory===category&&(department===undefined||selectedDept===department);
- selectedCategory=clearing?'':category;
- if(department!==undefined)selectedDept=clearing?'':department;
- page=0;renderRows();if(!allJobsMode)renderCharts(selectedGlobalCounts());
 }
 function drawIssueCategories(entries){
  const host=$('issueCategoryChart'),key=$('issueCategoryKey');
  const counts=new Map(),departments=new Map();
  for(const entry of entries){
-  if(!issueFieldsMatch(entry,'category'))continue;
   const category=entry.issue.category_code;
   if(!category)continue;
-  const scoped=entry.assignments.filter(a=>(selected==='all'||a.chartStatus===selected||a.rawStatus===selected)&&a.department);
+  const scoped=entry.assignments.filter(a=>a.department);
   if(!scoped.length)continue;
   const byDept=counts.get(category)||new Map();
   counts.set(category,byDept);
@@ -219,10 +181,10 @@ function drawIssueCategories(entries){
  for(const {category,byDept,total} of sorted){
   const row=document.createElement('div');row.className='qa-category-row';
   const name=chartCategoryNames.get(category)||category;
-  const label=issueChartButton(name,selectedCategory===category&&!selectedDept,()=>selectIssueCategory(category));
+  const label=issueChartButton(name,{category});
   const bar=document.createElement('div');bar.className='qa-category-bar';bar.style.width=(total/sorted[0].total*100)+'%';
   for(const [department,count] of byDept){
-   const bit=issueChartButton('',selectedCategory===category&&selectedDept===department,()=>selectIssueCategory(category,department));
+   const bit=issueChartButton('',{category,department});
    bit.title=name+' · '+department+' · '+count+' ปัญหา';bit.setAttribute('aria-label',bit.title);
    bit.style.flexGrow=count;bit.style.setProperty('--issue-color',departments.get(department));bar.append(bit);
   }
@@ -236,20 +198,19 @@ function drawIssueCategories(entries){
  }
 }
 function drawIssueRing(entries,field,property,options,ringKey){
- const select=$(field+'Filter'),ring=$('issue'+ringKey+'Ring'),key=$('issue'+ringKey+'Key');
- const source=entries.filter(e=>rowMatchesChart(e)&&issueFieldsMatch(e,field));
- const counts=Object.entries(options).map(([id,meta])=>({id,...meta,count:source.filter(e=>e.issue[property]===id).length}));
+ const ring=$('issue'+ringKey+'Ring'),key=$('issue'+ringKey+'Key');
+ const counts=Object.entries(options).map(([id,meta])=>({id,...meta,count:entries.filter(e=>e.issue[property]===id).length}));
  const total=counts.reduce((sum,x)=>sum+x.count,0),parts=[];
  let end=0;
  key.replaceChildren();
- function choose(id){select.value=select.value===id?'':id;page=0;renderRows();}
+ function choose(id){viewFilteredJobs({[field]:id});}
  for(const {id,name,color,count} of counts){
   if(count){
    const start=end;end+=count/total*100;
    parts.push({id,start,end,color});
   }
   const label=field==='severity'?id+' '+name:name;
-  const button=issueChartButton('',select.value===id,()=>choose(id));
+  const button=issueChartButton('',{[field]:id});
   const title=document.createElement('span'),dot=document.createElement('i'),value=document.createElement('b');
   dot.className='qa-issue-dot';dot.style.setProperty('--issue-color',color);title.append(dot,label);
   value.textContent=count;button.append(title,value);key.append(button);
@@ -273,38 +234,34 @@ function renderIssueCharts(entries){
  drawIssueRing(entries,'severity','severity_code',classification.levels,'Severity');
  drawIssueRing(entries,'occurrence','occurrence_type',classification.occurrences,'Occurrence');
 }
-function initIssueCharts(){
- if(!classification||!$('issueSummary'))return;
- for(const [id,list] of Object.entries({severityFilter:classification.levels,occurrenceFilter:classification.occurrences})){
-  const control=$(id);
-  for(const [code,value] of Object.entries(list))control.append(new Option(id==='severityFilter'?code+' '+value.name:value.name,code));
-  control.onchange=()=>{page=0;renderRows();};
- }
- $('showSeverityGuide').onclick=()=>classification.showGuide($('severityGuide'));
- $('clearIssueCategory').onclick=()=>{selectedCategory='';page=0;renderRows();};
+async function loadCategoryNames(){
+ if(!window.QA?.api?.getSettings)return;
+ const settings=await QA.api.getSettings();
+ for(const category of settings.categories||[])chartCategoryNames.set(category.code,category.name);
+}
+function initIssueSummary(){
+ if(!classification)return;
  let requested=false;
  $('issueSummary').addEventListener('toggle',async()=>{
   if(!$('issueSummary').open)return;
   renderRows();
-  if(requested||!QA.api?.getSettings)return;
+  if(requested)return;
   requested=true;
   try{
-   const settings=await QA.api.getSettings();
-   for(const category of settings.categories||[])chartCategoryNames.set(category.code,category.name);
+   await loadCategoryNames();
    if($('issueSummary').open)renderRows();
   }catch{requested=false;}
  });
 }
 
 function renderRows(){
- const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?(allJobsMode?'รายการใบงานทั้งหมด':'ปัญหาแจ้งล่าสุด'):(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
- $('listTitle').textContent=label;
- const categoryChip=$('clearIssueCategory');
- if(categoryChip){categoryChip.hidden=!selectedCategory;categoryChip.textContent=selectedCategory?(chartCategoryNames.get(selectedCategory)||selectedCategory)+' ×':'';}
- const entries=base.flatMap(issueRowsFor).filter(e=>periodMatch({...e.job,issueReportedAt:e.issue.reported_at}));
- const filtered=entries.filter(e=>rowMatchesChart(e)&&issueFieldsMatch(e)).sort(compareLatestIssueRows);
- if($('issueSummary')?.open)renderIssueCharts(entries);
- const count=allJobsMode?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
+ const entries=base.flatMap(issueRowsFor);
+ const filtered=(allJobsMode?entries.filter(e=>periodMatch({...e.job,issueReportedAt:e.issue.reported_at})
+  &&rowMatchesChart(e)&&issueFieldsMatch(e)):entries).sort(compareLatestIssueRows);
+ if(!allJobsMode&&$('issueSummary').open)renderIssueCharts(entries);
+ const latestCount=compactLatest?.matches?5:6;
+ const count=allJobsMode?pageSize:latestCount;
+ const pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
   const j=e.job,i=e.issue,st=issueRowStatus(e),status=issueStatusLabel(e,st);
@@ -329,17 +286,18 @@ function renderRows(){
   return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span class="read-column">${allJobsMode&&!workflowAssignments.length?'—':readMarker(j,i)}</span><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span class="qa-problem-list-text" title="${safe(problem)}"><span>${safe(problem)}</span>${classification?.badge(i.severity_code,true)||''}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${notices}</span><span title="${safe(time)}">${safe(time)}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('pagination').hidden=!allJobsMode||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
- document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
  if(allJobsMode)queueCatalogMetadata(show);
- scheduleDashboardFit();
 }
 
 let returningView=null;
-const dashboardControls=['filter','day','week','month','year','dashScope','dashSearch','severityFilter','occurrenceFilter'];
-function rememberDashboard(){if(allJobsMode)return;window.QAReturn?.saveDashboard({controls:Object.fromEntries(dashboardControls.filter(id=>$(id)).map(id=>[id,$(id).value])),selected,selectedDept,selectedCategory,page,scrollY:Math.max(0,window.scrollY||0)});}
-function restoreControls(state){for(const id of dashboardControls){const node=$(id),value=state?.controls?.[id];if(!node||typeof value!=='string')continue;if(node.tagName==='SELECT'&&![...node.options].some(option=>option.value===value))continue;node.value=value;}for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==$('filter').value;}
-function restoreList(state){selectedCategory=typeof state?.selectedCategory==='string'?state.selectedCategory:'';selected=['all',...statuses.map(row=>row[0])].includes(state?.selected)?state.selected:'all';selectedDept=typeof state?.selectedDept==='string'?state.selectedDept:'';page=Number.isInteger(state?.page)?Math.max(0,state.page):0;}
-function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
+function rememberDashboard(){
+ if(!allJobsMode)window.QAReturn?.saveDashboard({scrollY:Math.max(0,window.scrollY||0)});
+}
+function updatePeriod(){
+ const period=$('filter').value;
+ for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==period;
+ page=0;renderRows();
+}
 function initExcel(){
  const profile=QA.profile||{},role=String(profile.role||'').toLowerCase(),button=$('exportExcel');
  if(!button||profile.active===false||profile.approval_status&&profile.approval_status!=='APPROVED'||
@@ -361,50 +319,120 @@ function initExcel(){
   await QAExcelExport.download();
  });
 }
-function init(){initIssueCharts();initExcel();const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',rememberDashboard);$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});
- if(window.ResizeObserver){
-  const observer=new ResizeObserver(scheduleDashboardFit);
-  observer.observe(document.querySelector('main.main'));
-  observer.observe($('plot'));
+function initCatalogFilters(){
+ const scopes=$('dashScope'),status=$('allJobsStatus');
+ scopes.replaceChildren(...Object.entries(catalogScopes).map(([key,label])=>new Option(label,key)));
+ const savedScope=dashboardQuery.get('scope');
+ scopes.value=Object.hasOwn(catalogScopes,savedScope)?savedScope:'all';
+ selected=status.value=[...status.options].some(option=>option.value===dashboardQuery.get('status'))?dashboardQuery.get('status'):'all';
+ selectedDept=dashboardQuery.get('department')||'';
+ selectedCategory=dashboardQuery.get('category')||'';
+
+ for(const [field,options] of [['severity',classification?.levels],['occurrence',classification?.occurrences]]){
+  const control=$(field+'Filter');
+  for(const [code,value] of Object.entries(options||{})){
+   control.append(new Option(field==='severity'?code+' '+value.name:value.name,code));
+  }
+  const initial=dashboardQuery.get(field);
+  if(options&&Object.hasOwn(options,initial))control.value=initial;
+  control.onchange=()=>{page=0;renderRows();};
  }
- window.addEventListener('resize',scheduleDashboardFit);
- if(document.fonts?.ready)document.fonts.ready.then(scheduleDashboardFit);
+ $('showSeverityGuide').onclick=()=>classification?.showGuide($('severityGuide'));
+
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const date=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+ const today=date.year+'-'+date.month+'-'+date.day;
+ $('day').value=today;
+ $('month').value=today.slice(0,7);
+ $('year').value=date.year;
+ $('week').value=weekKey(today);
+ $('filter').onchange=updatePeriod;
+ for(const kind of ['day','week','month','year'])$(kind).onchange=updatePeriod;
+
+ status.onchange=()=>{selected=status.value;page=0;renderRows();};
+ $('departmentFilter').onchange=event=>{selectedDept=event.target.value;page=0;renderRows();};
+ $('categoryFilter').onchange=event=>{selectedCategory=event.target.value;page=0;renderRows();};
+ scopes.onchange=()=>{page=0;render();};
+ $('dashSearch').oninput=()=>{page=0;render();};
+ $('refresh').onclick=load;
+ $('prevPage').onclick=()=>{page--;renderRows();};
+ $('nextPage').onclick=()=>{page++;renderRows();};
+ $('clearAllJobFilters').onclick=()=>{
+  $('dashSearch').value='';
+  scopes.value=$('filter').value=status.value=selected='all';
+  selectedDept=selectedCategory='';
+  for(const id of ['departmentFilter','categoryFilter','severityFilter','occurrenceFilter'])$(id).value='';
+  for(const kind of ['day','week','month','year'])$(kind).hidden=true;
+  page=0;render();
+ };
+ $('allJobFilters').hidden=false;
+}
+function updateCatalogOptions(){
+ const departments=new Set(),categories=new Set();
+ for(const job of all)for(const assignment of enabledAssignments(job)){
+  if(assignment.department)departments.add(assignment.department);
+  for(const issue of assignment.issues)if(issue.category_code)categories.add(issue.category_code);
+ }
+ for(const [id,items,current,labelFor] of [
+  ['departmentFilter',departments,selectedDept,code=>code],
+  ['categoryFilter',categories,selectedCategory,code=>chartCategoryNames.get(code)||code]
+ ]){
+  if(current)items.add(current);
+  const order=[...items].sort((a,b)=>labelFor(a).localeCompare(labelFor(b),'th'));
+  const control=$(id);
+  control.replaceChildren(control.options[0],...order.map(code=>new Option(labelFor(code),code)));
+  control.value=current;
+ }
+}
+function bindHomeCharts(){
+ document.querySelector('.charts').addEventListener('click',event=>{
+  const target=event.target.closest('[data-chart-status],[data-chart-dept]');
+  if(target){viewFilteredJobs({status:target.dataset.chartStatus,department:target.dataset.chartDept});return;}
+  const ring=event.target.closest('#donut');
+  if(!ring||event.target.closest('.donut-center'))return;
+  const rect=ring.getBoundingClientRect();
+  const x=event.clientX-rect.left-rect.width/2,y=event.clientY-rect.top-rect.height/2;
+  const distance=Math.hypot(x,y);
+  if(distance<rect.width*.32||distance>rect.width*.52)return;
+  const angle=((Math.atan2(x,-y)*180/Math.PI+360)%360)/3.6;
+  const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from&&angle<p.to);
+  if(part)viewFilteredJobs({status:part.s});
+ });
+ document.querySelectorAll('.stat').forEach(el=>el.onclick=()=>viewFilteredJobs({status:el.dataset.status}));
+}
+function init(){
+ initExcel();
+ const profile=window.QA?.profile||{};
+ $('welcome').textContent=`สวัสดี ${profile.display_name||profile.email||'ผู้ใช้งาน'} · ${profile.department||'ระบบติดตามงาน'}`;
  if(allJobsMode){
-  const scope=$('dashScope'),status=$('allJobsStatus');
-  scope.replaceChildren(...Object.entries(catalogScopes).map(([key,label])=>new Option(label,key)));
-  const savedScope=dashboardQuery.get('scope');
-  scope.value=Object.keys(catalogScopes).includes(savedScope)?savedScope:'all';
-  scope.title='';
-  status.onchange=()=>{selected=status.value;page=0;renderRows();};
-  $('clearAllJobFilters').onclick=()=>{
-   $('dashSearch').value='';scope.value='all';$('filter').value='all';
-   selected=status.value='all';selectedDept='';selectedCategory='';
-   for(const id of ['severityFilter','occurrenceFilter'])if($(id))$(id).value='';
-   updatePeriod();
-  };
+  initCatalogFilters();
   document.querySelector('main > header h1').textContent='งานทั้งหมด';
   document.title='งานทั้งหมด | Complain & Action Tracking';
+  void loadCategoryNames().then(updateCatalogOptions).catch(()=>{});
  }else{
+  initIssueSummary();
+  bindHomeCharts();
+  compactLatest?.addEventListener?.('change',renderRows);
   returningView=window.QAReturn?.takeReturn()||null;
   if(!returningView&&dashboardQuery.get('from')==='all-jobs'){
    const state=window.QAReturn?.readDashboard();
    if(state)returningView={state};
   }
+  if(returningView)window.QAReturn?.showMessage(returningView.message);
+  document.addEventListener('click',event=>{
+   const link=event.target.closest('a[href]');
+   if(!link)return;
+   const url=new URL(link.href,location.href);
+   if(url.origin===location.origin&&url.pathname===new URL('vnext-job.html',location.href).pathname)rememberDashboard();
+  },true);
+  $('viewAll').addEventListener('click',rememberDashboard);
+  window.addEventListener('pagehide',rememberDashboard);
  }
- if(returningView){restoreControls(returningView.state);window.QAReturn?.showMessage(returningView.message);}
- document.addEventListener('click',event=>{const link=event.target.closest('a[href]');if(!link)return;try{const url=new URL(link.href,location.href);if(url.origin===location.origin&&url.pathname===new URL('vnext-job.html',location.href).pathname)rememberDashboard();}catch{}},true);
- window.addEventListener('pagehide',rememberDashboard);
- scheduleDashboardFit();
- load()}
-function dateRange(){const kind=$('filter').value;
- if(kind==='day')return {from:$('day').value,to:$('day').value};
- if(kind==='month'){const v=$('month').value;if(!/^\d{4}-\d{2}$/.test(v))return {from:null,to:null};const [y,m]=v.split('-').map(Number);return {from:v+'-01',to:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)};}
- if(kind==='year'){const y=Number($('year').value);return y>=2020&&y<=2100?{from:y+'-01-01',to:y+'-12-31'}:{from:null,to:null};}
- if(kind==='week'){const v=$('week').value,m=/^(\d{4})-W(\d{2})$/.exec(v);if(!m)return {from:null,to:null};const y=+m[1],w=+m[2],d=new Date(Date.UTC(y,0,4));d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)+7*(w-1));const from=d.toISOString().slice(0,10);d.setUTCDate(d.getUTCDate()+6);return {from,to:d.toISOString().slice(0,10)};}
- return {from:null,to:null};}
-async function refreshSummary(){if(allJobsMode)return;const seq=++summaryRequest;const dates=dateRange();
+ load();
+}
+async function refreshSummary(){const seq=++summaryRequest;
  try{const {data,error}=await window.QA.client.rpc('qa_dashboard_issue_summary',{
-  p_scope:$('dashScope').value,p_date_from:dates.from,p_date_to:dates.to});
+  p_scope:'all',p_date_from:null,p_date_to:null});
   if(error)throw error;if(!data||!Array.isArray(data.departments))throw new Error('รูปแบบข้อมูลสถิติไม่ถูกต้อง');
   if(seq!==summaryRequest)return;globalAggregate=data;render();
  }catch(e){if(seq!==summaryRequest)return;globalAggregate=null;render();$('feedback').textContent='โหลดสถิติรวมไม่สำเร็จ: '+String(e?.message||e);}}
@@ -469,7 +497,7 @@ async function refreshReceivers(request){
   receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];
   receiverError='';
  }catch(e){if(request!==loadRequest)return;receiverError=e.message||String(e);}
- renderCharts(selectedGlobalCounts());scheduleDashboardFit();
+ renderCharts(selectedGlobalCounts());
 }
 async function load(){
  const request=++loadRequest;
@@ -502,7 +530,8 @@ async function load(){
           selfReturned:a.self_returned===true,workflowVisible:a.workflow_visible===true,isMyWork:a.is_my_work===true,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
           chartStatus:a.self_review_pending===true||(a.self_response===true&&a.status==='IN_PROGRESS'&&a.approval_requested_at)?'WAITING_REVIEW':groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
    })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
-   if(returningView)restoreList(returningView.state);else page=0;
+   if(allJobsMode)updateCatalogOptions();
+   page=0;
    issueReadStates=new Map();
    render();
    if(returningView){const y=Number(returningView.state?.scrollY)||0;requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo({top:Math.max(0,y),behavior:'instant'})));returningView=null;}
