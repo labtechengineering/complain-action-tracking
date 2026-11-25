@@ -50,7 +50,7 @@
  .vn-card > .vn-file-grid{margin:12px 0 2px}
  .vn-card .vn-file-item textarea{margin-top:7px}
  `;document.head.append(style);
- function create(){return {id:++seq,images:[],video:[],notes:{},category:'',other:'',description:'',requestDueDate:'',departments:[]};}
+ function create(){return {id:++seq,images:[],video:[],notes:{},category:'',other:'',description:'',requestDueDate:'',severity_code:null,occurrence_type:null,self_response:false,departments:[]};}
  problems.push(create());
  const oldProblem=$('problemDetail')?.closest('.card');if(!oldProblem)return;
  const panel=document.createElement('section');panel.className='card';panel.id='vnPanel';
@@ -90,7 +90,7 @@
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
- function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);}}
+ function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);if(window.QAIssueClassification)Object.assign(i,QAIssueClassification.read(el));i.self_response=el.querySelector('.vn-self-response')?.checked===true;}}
  function render(){for(const p of problems)p.releasePreview?.();const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
   const opt=[...$('category').options].filter(x=>x.value).map(x=>`<option value="${esc(x.value)}">${esc(x.textContent)}</option>`).join('');
@@ -98,8 +98,10 @@
   <label>ประเภทปัญหา *<select class="vn-category" required><option value="">-- เลือก Category --</option>${opt}</select></label>
   <label class="vn-other-label" hidden>ระบุประเภทปัญหา *<input class="vn-other-detail" type="text" maxlength="120" placeholder="ระบุสั้นๆ เช่น ปัญหางานเอกสาร"></label>
   <label>รายละเอียดปัญหา *<textarea class="vn-detail" maxlength="20000" required></textarea></label>
+  <div class="qa-issue-classification"></div>
   <label class="vn-request-due">วันกำหนดเสร็จ *<input type="date" required></label>
-  <strong>ฝ่ายรับเรื่อง * (เลือกได้มากกว่า 1)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
+  ${['user','department_admin'].includes(window.QA?.profile?.role)&&QA.profile.department?'<label class="qa-issue-self"><input type="checkbox" class="vn-self-response"> ผู้แจ้งตอบปัญหานี้เอง</label>':''}
+  <strong>ฝ่ายรับเรื่อง (เลือกได้หลายแผนก)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
   <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="${QAUploadPhoto.accept}" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
   <p class="vn-files" role="status"></p><div class="vn-file-grid"></div>`;
   box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;box.querySelector('.vn-request-due input').value=p.requestDueDate;
@@ -108,6 +110,9 @@
   const syncOther=()=>{const show=isOtherCategory(category.value);otherLabel.hidden=!show;other.required=show;if(!show){other.value='';p.other='';}};
   category.onchange=()=>{p.category=category.value;syncOther();if(other.required)other.focus();};other.oninput=()=>p.other=other.value;syncOther();
 
+  window.QAIssueClassification?.mount(box.querySelector('.qa-issue-classification'),{key:p.id,severity:p.severity_code,occurrence:p.occurrence_type,required:true});
+  const self=box.querySelector('.vn-self-response');
+  if(self)self.checked=p.self_response;
   for(const ch of box.querySelectorAll('.vn-dept'))ch.checked=p.departments.includes(ch.value);
   const imageInput=box.querySelector('.vn-images'),videoInput=box.querySelector('.vn-video');
   const selectFiles=async(input,files)=>{
@@ -155,12 +160,13 @@
   updateFiles();box.querySelector('.vn-remove')?.addEventListener('click',()=>{save();p.releasePreview();problems.splice(problems.indexOf(p),1);render();});host.append(box);
  });window.QA?.applyPermissions?.();}
  $('vnAdd').onclick=()=>{save();problems.push(create());render();};
- function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');if(!receivers.some(x=>x.enabled))throw new Error('ยังไม่ได้กำหนดฝ่ายรับเรื่องใน Settings');
+ function collect(){save();if(!['PRODUCTION','AFTERSALES'].includes($('vnSource').value))throw new Error('กรุณาเลือกประเภทงาน Production หรือ Aftersales ก่อนแจ้งงาน');
  const issues=problems.map((p,i)=>{
  if(!p.requestDueDate)throw new Error(`ปัญหา ${i+1}: กรุณาเลือกวันกำหนดเสร็จ`);
- if(!p.category||!p.description.trim()||p.departments.length===0)throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และฝ่ายรับเรื่องให้ครบ`);
+ if(!p.category||!p.description.trim()||(!p.departments.length&&!p.self_response))throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และเลือกฝ่ายรับเรื่องหรือเลือกตอบเอง`);
+ if(window.QAIssueClassification&&(!p.severity_code||!p.occurrence_type))throw new Error(`ปัญหา ${i+1}: กรุณาเลือกความรุนแรงและปัญหาเก่า / ใหม่`);
  if(isOtherCategory(p.category)&&!String(p.other||'').trim())throw new Error(`ปัญหา ${i+1}: กรุณาระบุประเภทปัญหาอื่นๆ`);
- return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),request_due_date:p.requestDueDate,departments:p.departments};});
+ return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),request_due_date:p.requestDueDate,departments:p.self_response?[...new Set([QA.profile.department,...p.departments])]:p.departments,...(window.QAIssueClassification?{severity_code:p.severity_code,occurrence_type:p.occurrence_type,self_response:p.self_response}:{})};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
  customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
  if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';

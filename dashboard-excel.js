@@ -114,9 +114,7 @@ async function download(){const button=$('exportExcel'),note=$('excelExportStatu
   const bytes=makeXlsx(workbookData(result.records,result.scope,result.asOf,categories)),blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;
   const stamp=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());a.download='Complain_Job_Form_'+String(result.scope).replace(/[^a-zA-Z0-9ก-๙_-]/g,'_')+'_'+stamp+'.xlsx';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);note.textContent='สร้างไฟล์ Excel แล้ว '+result.records.length.toLocaleString('th-TH')+' ใบงาน';
  }catch(e){note.textContent='ดาวน์โหลด Excel ไม่สำเร็จ: '+(e.message||String(e));}finally{button.disabled=false;button.removeAttribute('aria-busy');}}
-async function boot(){await QA.whenReady();const p=QA.profile||{},role=String(p.role||'').toLowerCase();if(p.active===false||p.approval_status&&p.approval_status!=='APPROVED'||!['system_admin','department_admin','user','viewer'].includes(role)||role!=='system_admin'&&!String(p.department||'').trim())return;const button=$('exportExcel');if(!button)return;button.hidden=false;button.disabled=false;button.addEventListener('click',download);}
-window.QAExcelExport=Object.freeze({makeXlsx,workbookData,fetchRecords});
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>boot().catch(e=>{$('excelExportStatus').textContent='เตรียมปุ่ม Excel ไม่สำเร็จ: '+e.message;}),{once:true});else boot().catch(e=>{$('excelExportStatus').textContent='เตรียมปุ่ม Excel ไม่สำเร็จ: '+e.message;});
+window.QAExcelExport=Object.freeze({makeXlsx,workbookData,fetchRecords,download});
 })();
 
 })();

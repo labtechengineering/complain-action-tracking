@@ -5,6 +5,8 @@ const allJobsMode=dashboardQuery.get('view')==='all';
 const catalogScopes={all:'ทุกแผนก',department:'แผนกของฉัน',mine:'งานของฉัน'};
 const catalogDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'});
 if(allJobsMode)document.documentElement.dataset.dashboardView='all';
+const classification=window.QAIssueClassification;
+let selectedCategory='';
 const statuses=[['IN_PROGRESS','กำลังดำเนินงาน','#f4ae3c'],['WAITING_REVIEW','รอตรวจสอบ','#268ae5'],['CLOSED','สำเร็จ','#2cbd7b']];
 const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=v=>String(v??'').trim().toLowerCase();
@@ -18,35 +20,14 @@ const timeText=j=>{
  const get=k=>parts.find(x=>x.type===k)?.value||'';
  return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}`;
 };
-function jobCarOrder(j){
- // The most recently allocated CAR goes first, independent of job timestamps.
- const m=String(j.carCode||'').match(/CAR[-\s]*(\d{4})[-\s]*(\d+)(?:-|$)/i);
- return m?{year:Number(m[1]),seq:Number(m[2])}:null;
-}
-function reviewAssignments(entry){
- const p=window.QA?.profile||{};
- if(!['department_admin','system_admin'].includes(String(p.role||'').toLowerCase()))return [];
- return entry.assignments.filter(a=>
-  QAWorkflow.permissions(p,entry.job,a).canResolveUnrelated||QAWorkflow.permissions(p,entry.job,a).canFinalReview||
-  (norm(entry.job.fromDepartment)===norm(p.department)&&a.rawStatus==='WAITING_REVIEW')||
-  (norm(a.department)===norm(p.department)&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt)));
-}
-function reviewArrival(entry){return Math.max(0,...reviewAssignments(entry).map(a=>Date.parse(QAWorkflow.permissions(QA.profile,entry.job,a).canResolveUnrelated?a.unrelatedRequestedAt:a.rawStatus==='WAITING_REVIEW'?(a.approvedAt||a.approvalRequestedAt):a.approvalRequestedAt)||0));}
-function compareReviewArrivals(a,b){
- const ar=reviewAssignments(a).length>0,br=reviewAssignments(b).length>0;
- if(ar!==br)return ar?-1:1;
- if(ar&&br){const d=reviewArrival(b)-reviewArrival(a);if(d)return d;}
- return compareLatestIssueRows(a,b);
-}
+function issueTimestamp(entry){return Date.parse(entry.issue.reported_at||'')||dt(entry.job);}
 function compareLatestIssueRows(a,b){
- const x=jobCarOrder(a.job),y=jobCarOrder(b.job);
- if(x&&y){if(x.year!==y.year)return y.year-x.year;if(x.seq!==y.seq)return y.seq-x.seq;}
- else if(x||y){return x?-1:1;}
- const issueDiff=Number(b.issue.issue_number||0)-Number(a.issue.issue_number||0);
- if(issueDiff)return issueDiff;const timeDiff=dt(b.job)-dt(a.job);return timeDiff||String(b.issue.issue_id||'').localeCompare(String(a.issue.issue_id||''));
+ return issueTimestamp(b)-issueTimestamp(a)||String(b.job.jobId).localeCompare(String(a.job.jobId))
+  ||Number(b.issue.issue_number||0)-Number(a.issue.issue_number||0)
+  ||String(b.issue.issue_id||'').localeCompare(String(a.issue.issue_id||''));
 }
 
-let all=[],base=[],selected='all',selectedDept='',page=0,receiverCodes=null,receiverError='',assignmentLoadErrors=0,globalAggregate=null,summaryRequest=0;const pageSize=20;
+let all=[],base=[],selected='all',selectedDept='',page=0,receiverCodes=null,receiverError='',globalAggregate=null,summaryRequest=0,loadRequest=0;const pageSize=20;
 // Use the actual rendered header/cards/list height, rather than guessing a screen scale.
 let dashboardFitFrame=0;
 function scheduleDashboardFit(){
@@ -69,7 +50,7 @@ function scheduleDashboardFit(){
 }
 function bangkokKey(j){if(allJobsMode&&dt(j))return catalogDate.format(new Date(dt(j)));const s=String(j.createdDateTime||'');let m=s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''}
 function weekKey(v){const d=new Date(v+'T12:00:00+07:00');if(isNaN(+d))return '';const day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day+3);const first=new Date(Date.UTC(d.getUTCFullYear(),0,4));const n=1+Math.round(((d-first)/86400000-3+(first.getUTCDay()+6)%7)/7);return `${d.getUTCFullYear()}-W${String(n).padStart(2,'0')}`}
-function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
+function periodMatch(j){const type=$('filter').value;if(type==='all')return true;const key=j.issueReportedAt?catalogDate.format(new Date(j.issueReportedAt)):bangkokKey(j);if(!key)return false;if(type==='day')return key===$('day').value;if(type==='week')return weekKey(key)===$('week').value;if(type==='month')return key.slice(0,7)===$('month').value;return key.slice(0,4)===$('year').value}
 // Work status is held by the receiving department, not qa_jobs.status.
 // OPEN (not yet accepted), IN_PROGRESS, REWORK -> yellow. Only explicit
 // requester acceptance (CLOSED) turns the department green.
@@ -80,10 +61,8 @@ function enabledAssignments(j){return j.departmentAssignments||[];} // Include h
 function assignmentIssues(a){const found=new Set();return (a.issues||[]).filter(i=>{const key=String(i.issue_id??i.issue_number??'');if(!key||found.has(key))return false;found.add(key);return true;});}
 // One issue gets one suffix across every receiving department. The suffix is the
 // persisted issue_number, NOT an assignment's position in a viewer-specific list.
-function displayIssueCode(j,assignment,issue){
- const key=String(issue.issue_id);
- const shared=j.issueCodes?.get(key);
- return shared||String(j.carCode||j.jobId||'—')+'-'+String(issue.issue_number||1).padStart(2,'0');
+function displayIssueCode(j,issue){
+ return String(j.carCode||j.jobId||'—')+'-'+String(issue.issue_number||1).padStart(2,'0');
 }
 // Dashboard list: ONE issue_id per row, irrespective of how many departments receive it.
 // Chart statistics intentionally continue counting issue x receiving department.
@@ -98,8 +77,20 @@ function issueRowsFor(j){
  }
  return [...byIssue.values()];
 }
-function entriesFor(j){return deptAssignments(j).flatMap(a=>assignmentIssues(a).map(issue=>({job:j,assignment:a,issue,chartStatus:a.chartStatus,department:a.department})));}
-function issueRowStatus(e){return QAStatus.aggregate(QAStatus.scope(e.assignments,{department:selectedDept}));}
+function issueRowStatus(e){
+ const scoped=QAStatus.scope(e.assignments,{department:selectedDept});
+ return QAStatus.aggregate(scoped.map(a=>a.selfReview?{rawStatus:'WAITING_REVIEW'}:a));
+}
+function issueStatusLabel(e,status){
+ const scoped=QAStatus.scope(e.assignments,{department:selectedDept});
+ if(scoped.length===1&&scoped[0].selfResponse){
+  const a=scoped[0];
+  if(a.selfReview)return 'รอหัวหน้าตรวจ';
+  if(a.selfReturned)return 'ส่งกลับแก้ไข';
+  if(status==='IN_PROGRESS')return 'รอบันทึกคำตอบ';
+ }
+ return QAStatus.label(status);
+}
 // Match department and status on the SAME visible assignment. A shared issue's
 // status in another department must not satisfy the selected bar segment.
 function rowMatchesChart(e){return e.assignments.some(a=>(!selectedDept||norm(a.department)===norm(selectedDept))&&(selected==='all'||(selected==='CANCELLED'?a.rawStatus===selected:a.chartStatus===selected)));}
@@ -125,10 +116,9 @@ function deptAssignments(j){const p=window.QA?.profile||{}, dept=norm(p.departme
 }
 function searchMatch(j){const q=norm($('dashSearch').value);return !q||[j.carCode,j.jobId,j.customerName,j.country,j.serialNo,j.fromDepartment,j.toDepartment,j.problemDetail,j.status,j.location,j.category,...(j.departmentAssignments||[]).flatMap(a=>allJobsMode
  ? [a.department,...a.issues.map(i=>i.description)] : [a.department])].some(v=>norm(v).includes(q));}
-function recount(rows){const counts={IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0};for(const j of rows)for(const e of entriesFor(j))if(e.chartStatus)counts[e.chartStatus]++;return counts;}
 function selectedGlobalCounts(){const c={IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0};
  for(const row of globalAggregate?.departments||[]){if(c[row.status]!==undefined)c[row.status]+=Number(row.count)||0;}return c;}
-function render(){base=all.filter(j=>periodMatch(j)&&searchMatch(j)&&deptAssignments(j).length>0);
+function render(){base=all.filter(j=>searchMatch(j)&&deptAssignments(j).length>0);
  if(allJobsMode){renderRows();return;}
  const counts=selectedGlobalCounts();
  $('nTotal').textContent=globalAggregate?Object.values(counts).reduce((a,b)=>a+b,0).toLocaleString('th-TH'):'—';
@@ -137,9 +127,6 @@ function render(){base=all.filter(j=>periodMatch(j)&&searchMatch(j)&&deptAssignm
  $('nDone').textContent=globalAggregate?counts.CLOSED.toLocaleString('th-TH'):'—';
  $('period').textContent='';renderCharts(counts);renderRows();}
 
-function matchingAssignments(j){return deptAssignments(j).filter(a=>(selected==='all'||a.chartStatus===selected)&&(!selectedDept||a.department===selectedDept));}
-function listStatus(j,matching){const allInScope=deptAssignments(j);const relevant=selected==='all'&&!selectedDept?allInScope:matching;const types=[...new Set(relevant.map(a=>a.chartStatus).filter(Boolean))];if(types.length===1)return types[0];return 'MIXED';}
-function listStatusText(j,matching){const st=listStatus(j,matching);if(st==='MIXED')return 'หลายสถานะ';return statuses.find(a=>a[0]===st)?.[1]||'ไม่ระบุ';}
 function selectStatusCard(status){
  selected=status;selectedDept='';page=0;
  renderCharts(selectedGlobalCounts());renderRows();
@@ -156,7 +143,7 @@ function renderCharts(counts){
  const compact=document.documentElement.dataset.theme==='soft'&&window.matchMedia?.('(min-width:768px) and (min-height:600px)').matches;
  const plotHeight=$('plot').clientHeight;
  const barHeight=compact?Math.max(8,plotHeight-52):178;
- const depts=receiverCodes||[];
+ const depts=receiverCodes?[...new Set([...receiverCodes,...(globalAggregate?.departments||[]).map(a=>a.department)])]:[];
  const byDept=new Map(depts.map(d=>[d,{IN_PROGRESS:0,WAITING_REVIEW:0,CLOSED:0}]));
  for(const e of globalAggregate?.departments||[]){const x=byDept.get(e.department);if(x&&x[e.status]!==undefined)x[e.status]+=Number(e.count)||0;}
  const max=Math.max(1,...depts.map(d=>Object.values(byDept.get(d)).reduce((x,y)=>x+y,0)));
@@ -184,26 +171,154 @@ function readMarker(job,issue){
  return '<span class="read-state '+(unread?'unread':'read')+'" role="img" aria-label="'+label+'" title="'+label+'"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg></span>';
 }
 async function refreshReadStates(){
- const result=await window.QAReadState.load(all.filter(j=>!allJobsMode||j.workflowVisible).map(j=>j.jobId));issueReadStates=result.states;
+ const jobs=all;
+ const result=await window.QAReadState.load(jobs.filter(j=>!allJobsMode||j.workflowVisible).map(j=>j.jobId));
+ if(all===jobs)issueReadStates=result.states;
 }
 window.addEventListener('pageshow',e=>{if(e.persisted&&all.length)refreshReadStates().then(renderRows);});
+
+const chartCategoryNames=new Map();
+const departmentPalette=['#466c9f','#27847f','#8363a7','#ad7048','#5e747c','#8d6f9c','#b96063'];
+function issueFieldsMatch(entry, except=''){
+ const severity=$('severityFilter')?.value,occurrence=$('occurrenceFilter')?.value;
+ return (!severity||except==='severity'||severity===entry.issue.severity_code)
+  &&(!occurrence||except==='occurrence'||occurrence===entry.issue.occurrence_type)
+  &&(!selectedCategory||except==='category'||selectedCategory===entry.issue.category_code);
+}
+function issueChartButton(text,pressed,action){
+ const button=document.createElement('button');
+ button.type='button';button.textContent=text;button.setAttribute('aria-pressed',String(pressed));button.onclick=action;
+ return button;
+}
+function selectIssueCategory(category,department){
+ const clearing=selectedCategory===category&&(department===undefined||selectedDept===department);
+ selectedCategory=clearing?'':category;
+ if(department!==undefined)selectedDept=clearing?'':department;
+ page=0;renderRows();if(!allJobsMode)renderCharts(selectedGlobalCounts());
+}
+function drawIssueCategories(entries){
+ const host=$('issueCategoryChart'),key=$('issueCategoryKey');
+ const counts=new Map(),departments=new Map();
+ for(const entry of entries){
+  if(!issueFieldsMatch(entry,'category'))continue;
+  const category=entry.issue.category_code;
+  if(!category)continue;
+  const scoped=entry.assignments.filter(a=>(selected==='all'||a.chartStatus===selected||a.rawStatus===selected)&&a.department);
+  if(!scoped.length)continue;
+  const byDept=counts.get(category)||new Map();
+  counts.set(category,byDept);
+  for(const dept of new Set(scoped.map(a=>a.department))){
+   byDept.set(dept,(byDept.get(dept)||0)+1);
+   if(!departments.has(dept))departments.set(dept,departmentPalette[departments.size%departmentPalette.length]);
+  }
+ }
+ const sorted=[...counts].map(([category,byDept])=>({category,byDept,total:[...byDept.values()].reduce((a,b)=>a+b,0)}))
+  .sort((a,b)=>b.total-a.total||a.category.localeCompare(b.category,'th'));
+ host.replaceChildren();key.replaceChildren();
+ if(!sorted.length){host.textContent='ไม่พบข้อมูล';return;}
+ for(const {category,byDept,total} of sorted){
+  const row=document.createElement('div');row.className='qa-category-row';
+  const name=chartCategoryNames.get(category)||category;
+  const label=issueChartButton(name,selectedCategory===category&&!selectedDept,()=>selectIssueCategory(category));
+  const bar=document.createElement('div');bar.className='qa-category-bar';bar.style.width=(total/sorted[0].total*100)+'%';
+  for(const [department,count] of byDept){
+   const bit=issueChartButton('',selectedCategory===category&&selectedDept===department,()=>selectIssueCategory(category,department));
+   bit.title=name+' · '+department+' · '+count+' ปัญหา';bit.setAttribute('aria-label',bit.title);
+   bit.style.flexGrow=count;bit.style.setProperty('--issue-color',departments.get(department));bar.append(bit);
+  }
+  const sum=document.createElement('b');sum.textContent=total;
+  row.append(label,bar,sum);host.append(row);
+ }
+ for(const [label,color] of departments){
+  const item=document.createElement('span'),dot=document.createElement('i');
+  dot.className='qa-issue-dot';dot.style.setProperty('--issue-color',color);
+  item.append(dot,label);key.append(item);
+ }
+}
+function drawIssueRing(entries,field,property,options,ringKey){
+ const select=$(field+'Filter'),ring=$('issue'+ringKey+'Ring'),key=$('issue'+ringKey+'Key');
+ const source=entries.filter(e=>rowMatchesChart(e)&&issueFieldsMatch(e,field));
+ const counts=Object.entries(options).map(([id,meta])=>({id,...meta,count:source.filter(e=>e.issue[property]===id).length}));
+ const total=counts.reduce((sum,x)=>sum+x.count,0),parts=[];
+ let end=0;
+ key.replaceChildren();
+ function choose(id){select.value=select.value===id?'':id;page=0;renderRows();}
+ for(const {id,name,color,count} of counts){
+  if(count){
+   const start=end;end+=count/total*100;
+   parts.push({id,start,end,color});
+  }
+  const label=field==='severity'?id+' '+name:name;
+  const button=issueChartButton('',select.value===id,()=>choose(id));
+  const title=document.createElement('span'),dot=document.createElement('i'),value=document.createElement('b');
+  dot.className='qa-issue-dot';dot.style.setProperty('--issue-color',color);title.append(dot,label);
+  value.textContent=count;button.append(title,value);key.append(button);
+ }
+ const sum=document.createElement('strong');sum.textContent=total;
+ ring.replaceChildren(sum);ring.setAttribute('aria-label',total+' ปัญหา');
+ if(parts.length)ring.style.setProperty('--issue-ring','conic-gradient('+parts.map(p=>p.color+' '+p.start+'% '+p.end+'%').join(',')+')');
+ else ring.style.removeProperty('--issue-ring');
+ ring.onclick=event=>{
+  const box=ring.getBoundingClientRect(),radius=box.width/2;
+  const x=event.clientX-box.left-radius,y=event.clientY-box.top-box.height/2,dist=Math.hypot(x,y);
+  if(dist<radius*.68||dist>radius)return;
+  const angle=((Math.atan2(x,-y)*180/Math.PI+360)%360)/3.6;
+  const part=parts.find(p=>angle>=p.start&&angle<p.end);
+  if(part)choose(part.id);
+ };
+}
+function renderIssueCharts(entries){
+ if(!classification)return;
+ drawIssueCategories(entries);
+ drawIssueRing(entries,'severity','severity_code',classification.levels,'Severity');
+ drawIssueRing(entries,'occurrence','occurrence_type',classification.occurrences,'Occurrence');
+}
+function initIssueCharts(){
+ if(!classification||!$('issueSummary'))return;
+ for(const [id,list] of Object.entries({severityFilter:classification.levels,occurrenceFilter:classification.occurrences})){
+  const control=$(id);
+  for(const [code,value] of Object.entries(list))control.append(new Option(id==='severityFilter'?code+' '+value.name:value.name,code));
+  control.onchange=()=>{page=0;renderRows();};
+ }
+ $('showSeverityGuide').onclick=()=>classification.showGuide($('severityGuide'));
+ $('clearIssueCategory').onclick=()=>{selectedCategory='';page=0;renderRows();};
+ let requested=false;
+ $('issueSummary').addEventListener('toggle',async()=>{
+  if(!$('issueSummary').open)return;
+  renderRows();
+  if(requested||!QA.api?.getSettings)return;
+  requested=true;
+  try{
+   const settings=await QA.api.getSettings();
+   for(const category of settings.categories||[])chartCategoryNames.set(category.code,category.name);
+   if($('issueSummary').open)renderRows();
+  }catch{requested=false;}
+ });
+}
 
 function renderRows(){
  const label=(selectedDept?selectedDept+' · ':'')+(selected==='all'?(allJobsMode?'รายการใบงานทั้งหมด':'ปัญหาแจ้งล่าสุด'):(statuses.find(a=>a[0]===selected)?.[1]||'ปัญหาที่เลือก'));
  $('listTitle').textContent=label;
- const filtered=base.flatMap(j=>issueRowsFor(j)).filter(rowMatchesChart)
- .sort(allJobsMode?compareLatestIssueRows:compareReviewArrivals);
+ const categoryChip=$('clearIssueCategory');
+ if(categoryChip){categoryChip.hidden=!selectedCategory;categoryChip.textContent=selectedCategory?(chartCategoryNames.get(selectedCategory)||selectedCategory)+' ×':'';}
+ const entries=base.flatMap(issueRowsFor).filter(e=>periodMatch({...e.job,issueReportedAt:e.issue.reported_at}));
+ const filtered=entries.filter(e=>rowMatchesChart(e)&&issueFieldsMatch(e)).sort(compareLatestIssueRows);
+ if($('issueSummary')?.open)renderIssueCharts(entries);
  const count=allJobsMode?pageSize:6,pageCount=Math.max(1,Math.ceil(filtered.length/count));page=Math.max(0,Math.min(page,pageCount-1));
  const show=filtered.slice(page*count,(page+1)*count);
  $('jobRows').innerHTML=show.length?show.map(e=>{
-  const j=e.job,i=e.issue,st=issueRowStatus(e),status=QAStatus.label(st);
+  const j=e.job,i=e.issue,st=issueRowStatus(e),status=issueStatusLabel(e,st);
   const baseUrl='vnext-job.html?id='+encodeURIComponent(j.jobId)+'&assignments='+encodeURIComponent(e.assignments.map(a=>a.assignmentId).join(','))+(selectedDept?'&department='+encodeURIComponent(selectedDept):'');
   const issuer=j.isRequester||norm(j.fromDepartment)===norm(QA.profile?.department)||QA.profile?.role==='system_admin';
   const catalogLink='vnext-job.html?id='+encodeURIComponent(j.jobId)+'&from=all-jobs&scope='+encodeURIComponent($('dashScope').value);
   const url=(allJobsMode?catalogLink:issuer?'vnext-job.html?id='+encodeURIComponent(j.jobId):baseUrl.split('#')[0])+'#issue-'+encodeURIComponent(String(i.issue_id));
-  const route=`${j.fromDepartment==='SYSTEM'?'System Admin':j.fromDepartment||'—'} → ${e.departments.join(', ')||'—'}`;
+  const origin=j.fromDepartment==='SYSTEM'?'System Admin':j.fromDepartment||'—';
+  const self=e.assignments.some(a=>a.selfResponse);
+  const recipients=[...new Set(e.assignments.filter(a=>!a.selfResponse).map(a=>a.department).filter(Boolean))];
+  const route=origin+(self?' · ตอบเอง':'')+((!self||recipients.length)?' → '+(recipients.join(', ')||'—'):'');
+  const time=timeText({createdDateTime:i.reported_at||j.createdDateTime});
   const problem=i.description||j.problemDetail||'—';
-  const issueCode=displayIssueCode(j,e.assignments[0],i);
+  const issueCode=displayIssueCode(j,i);
   const profile=window.QA?.profile||{};
   const noticePaths={accept:'<path d="M4 4h16v16H4zM8 8h8M8 12h5"/>',head:'<path d="m5 12 4 4L19 6"/>',review:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',work:'<path d="m5 19 3-7L18 2l4 4-10 10-7 3Z"/>',rework:'<path d="M8 5 3 10l5 5M3 10h11a6 6 0 0 1 0 12"/>',unrelated:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>'};
   const workflowAssignments=allJobsMode?e.assignments.filter(a=>a.workflowVisible):e.assignments;
@@ -211,20 +326,42 @@ function renderRows(){
    const type=n.code.startsWith('unrelated')?'unrelated':n.code.startsWith('rework')?'rework':n.code.startsWith('head')?'head':n.code;
    return '<span class="workflow-notice '+(n.action?'action-required':'informative')+'" data-notice="'+safe(n.code)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(noticePaths[type]||noticePaths.work)+'</svg>'+safe(n.text)+'</span>';
   }).join('');
-  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span class="read-column">${allJobsMode&&!workflowAssignments.length?'—':readMarker(j,i)}</span><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span title="${safe(problem)}">${safe(problem)}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${notices}</span><span title="${safe(timeText(j))}">${safe(timeText(j))}</span></a>`;
+  return `<a class="job-row" href="${safe(url)}" title="เปิดปัญหา ${safe(issueCode)}"><span class="read-column">${allJobsMode&&!workflowAssignments.length?'—':readMarker(j,i)}</span><span title="${safe(issueCode)}"><b>${safe(issueCode)}</b></span><span title="${safe(j.customerName)}">${safe(j.customerName||'ไม่ระบุ')}</span><span title="${safe(j.serialNo)}">${safe(j.serialNo||'—')}</span><span class="route" title="${safe(route)}">${safe(route)}</span><span class="qa-problem-list-text" title="${safe(problem)}"><span>${safe(problem)}</span>${classification?.badge(i.severity_code,true)||''}</span><span><i class="pill ${safe(st)}">${safe(status)}</i>${notices}</span><span title="${safe(time)}">${safe(time)}</span></a>`;
  }).join(''):'<div class="empty">ไม่พบรายการปัญหา</div>';
  $('pagination').hidden=!allJobsMode||filtered.length<=pageSize;$('prevPage').disabled=page===0;$('nextPage').disabled=page>=pageCount-1;$('pageInfo').textContent=`หน้า ${page+1} / ${pageCount}`;
  document.querySelectorAll('.stat').forEach(el=>el.classList.toggle('active',el.dataset.status===selected));
+ if(allJobsMode)queueCatalogMetadata(show);
  scheduleDashboardFit();
 }
 
 let returningView=null;
-const dashboardControls=['filter','day','week','month','year','dashScope','dashSearch'];
-function rememberDashboard(){if(allJobsMode)return;window.QAReturn?.saveDashboard({controls:Object.fromEntries(dashboardControls.map(id=>[id,$(id).value])),selected,selectedDept,page,scrollY:Math.max(0,window.scrollY||0)});}
-function restoreControls(state){for(const id of dashboardControls){const node=$(id),value=state?.controls?.[id];if(typeof value!=='string')continue;if(node.tagName==='SELECT'&&![...node.options].some(option=>option.value===value))continue;node.value=value;}for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==$('filter').value;}
-function restoreList(state){selected=['all',...statuses.map(row=>row[0])].includes(state?.selected)?state.selected:'all';selectedDept=typeof state?.selectedDept==='string'?state.selectedDept:'';page=Number.isInteger(state?.page)?Math.max(0,state.page):0;}
+const dashboardControls=['filter','day','week','month','year','dashScope','dashSearch','severityFilter','occurrenceFilter'];
+function rememberDashboard(){if(allJobsMode)return;window.QAReturn?.saveDashboard({controls:Object.fromEntries(dashboardControls.filter(id=>$(id)).map(id=>[id,$(id).value])),selected,selectedDept,selectedCategory,page,scrollY:Math.max(0,window.scrollY||0)});}
+function restoreControls(state){for(const id of dashboardControls){const node=$(id),value=state?.controls?.[id];if(!node||typeof value!=='string')continue;if(node.tagName==='SELECT'&&![...node.options].some(option=>option.value===value))continue;node.value=value;}for(const kind of ['day','week','month','year'])$(kind).hidden=kind!==$('filter').value;}
+function restoreList(state){selectedCategory=typeof state?.selectedCategory==='string'?state.selectedCategory:'';selected=['all',...statuses.map(row=>row[0])].includes(state?.selected)?state.selected:'all';selectedDept=typeof state?.selectedDept==='string'?state.selectedDept:'';page=Number.isInteger(state?.page)?Math.max(0,state.page):0;}
 function updatePeriod(){const v=$('filter').value;for(const k of ['day','week','month','year'])$(k).hidden=k!==v;page=0;render()}
-function init(){const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',rememberDashboard);$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});
+function initExcel(){
+ const profile=QA.profile||{},role=String(profile.role||'').toLowerCase(),button=$('exportExcel');
+ if(!button||profile.active===false||profile.approval_status&&profile.approval_status!=='APPROVED'||
+    !['system_admin','department_admin','user','viewer'].includes(role)||role!=='system_admin'&&!String(profile.department||'').trim())return;
+ button.hidden=false;button.disabled=false;
+ button.addEventListener('click',async()=>{
+  const note=$('excelExportStatus');
+  if(!window.QAExcelExport?.download){
+   button.disabled=true;
+   button.setAttribute('aria-busy','true');
+   note.textContent='กำลังโหลดเครื่องมือ Excel...';
+   try{
+    await QAFeatureScript.load('dashboard-excel.js?v=performance-20261125-r15');
+    if(!window.QAExcelExport?.download)throw Error('เครื่องมือ Excel ไม่พร้อม');
+   }
+   catch(e){note.textContent='ดาวน์โหลด Excel ไม่สำเร็จ: '+e.message;return;}
+   finally{button.disabled=false;button.removeAttribute('aria-busy');}
+  }
+  await QAExcelExport.download();
+ });
+}
+function init(){initIssueCharts();initExcel();const p=window.QA?.profile||{};if(['user','department_admin'].includes(String(p.role||'').toLowerCase())){const scope=$('dashScope');scope.value='all';scope.title='งานที่แผนกคุณรับเข้าและแจ้งออก';}$('welcome').textContent=`สวัสดี ${p.display_name||p.email||'ผู้ใช้งาน'} · ${p.department||'ระบบติดตามงาน'}`;const now=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=Object.fromEntries(parts.map(x=>[x.type,x.value]));const day=`${v.year}-${v.month}-${v.day}`;$('day').value=day;$('month').value=day.slice(0,7);$('year').value=v.year;$('week').value=weekKey(day);$('filter').addEventListener('change',()=>{updatePeriod();refreshSummary();});document.querySelector('.charts').addEventListener('click',ev=>{const target=ev.target.closest('[data-chart-status],[data-chart-dept]');if(target){toggleChartFilter(target.dataset.chartStatus||'',target.dataset.chartDept||'');return;}const ring=ev.target.closest('#donut');if(!ring||ev.target.closest('.donut-center'))return;const rect=ring.getBoundingClientRect(),cx=rect.left+rect.width/2,cy=rect.top+rect.height/2,dx=ev.clientX-cx,dy=ev.clientY-cy,dist=Math.hypot(dx,dy);if(dist<rect.width*.32||dist>rect.width*.52)return;const angle=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;const part=JSON.parse(ring.dataset.parts||'[]').find(p=>angle>=p.from*3.6&&angle<p.to*3.6);if(part)toggleChartFilter(part.s,'');});['day','week','month','year','dashScope'].forEach(id=>$(id).addEventListener('change',()=>{page=0;render();refreshSummary()}));$('dashSearch').addEventListener('input',()=>{page=0;render()});$('refresh').addEventListener('click',load);document.querySelectorAll('.stat').forEach(el=>el.addEventListener('click',()=>selectStatusCard(el.dataset.status)));$('viewAll').addEventListener('click',rememberDashboard);$('prevPage').addEventListener('click',()=>{page--;renderRows()});$('nextPage').addEventListener('click',()=>{page++;renderRows()});
  if(window.ResizeObserver){
   const observer=new ResizeObserver(scheduleDashboardFit);
   observer.observe(document.querySelector('main.main'));
@@ -241,7 +378,9 @@ function init(){const p=window.QA?.profile||{};if(['user','department_admin'].in
   status.onchange=()=>{selected=status.value;page=0;renderRows();};
   $('clearAllJobFilters').onclick=()=>{
    $('dashSearch').value='';scope.value='all';$('filter').value='all';
-   selected=status.value='all';selectedDept='';updatePeriod();
+   selected=status.value='all';selectedDept='';selectedCategory='';
+   for(const id of ['severityFilter','occurrenceFilter'])if($(id))$(id).value='';
+   updatePeriod();
   };
   document.querySelector('main > header h1').textContent='งานทั้งหมด';
   document.title='งานทั้งหมด | Complain & Action Tracking';
@@ -257,21 +396,6 @@ function init(){const p=window.QA?.profile||{};if(['user','department_admin'].in
  window.addEventListener('pagehide',rememberDashboard);
  scheduleDashboardFit();
  load()}
-// The same permission-checked RPC used by the detail page supplies assignment statuses.
-// Deliberately fail the Dashboard load if any assignment detail fails; never show false zeros.
-async function loadAssignments(jobs){
- const next=jobs.slice(),workers=Array.from({length:Math.min(6,next.length)},async()=>{
-  while(next.length){const j=next.shift();const {data,error}=await window.QA.client.rpc('qa_vnext_job_detail',{p_job_id:String(j.jobId)});
-   if(error)throw new Error(`${j.jobId}: ${error.message}`);
-   if(!data||!Array.isArray(data.assignments)||data.assignments.some(a=>!Array.isArray(a.issues)))throw new Error(`${j.jobId}: API ไม่ส่งข้อมูลปัญหาแยกตามแผนก`);
-   j.carCode=String(data.car_code||j.carCode||j.jobId);
-   // Stable issue code is built from qa_issue_items.issue_number in qa_vnext_job_detail.
-   // Dashboard does not require a second optional RPC merely to render a list.
-   j.issueCodes=new Map();
-   j.departmentAssignments=data.assignments.map(a=>({department:String(a.department_code||'').trim(),assignmentId:String(a.assignment_id||''),metadataLoaded:false,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}));
-  }
- });await Promise.all(workers);
-}
 function dateRange(){const kind=$('filter').value;
  if(kind==='day')return {from:$('day').value,to:$('day').value};
  if(kind==='month'){const v=$('month').value;if(!/^\d{4}-\d{2}$/.test(v))return {from:null,to:null};const [y,m]=v.split('-').map(Number);return {from:v+'-01',to:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)};}
@@ -284,16 +408,20 @@ async function refreshSummary(){if(allJobsMode)return;const seq=++summaryRequest
   if(error)throw error;if(!data||!Array.isArray(data.departments))throw new Error('รูปแบบข้อมูลสถิติไม่ถูกต้อง');
   if(seq!==summaryRequest)return;globalAggregate=data;render();
  }catch(e){if(seq!==summaryRequest)return;globalAggregate=null;render();$('feedback').textContent='โหลดสถิติรวมไม่สำเร็จ: '+String(e?.message||e);}}
-async function loadRoleMetadata(jobs){
+async function loadRoleMetadata(jobs,request){
  const pending=jobs.slice(),profile=window.QA.profile;let failures=0;
  const workers=Array.from({length:Math.min(4,pending.length)},async()=>{
-  while(pending.length){const job=pending.shift();try{
+  while(pending.length&&request===loadRequest){const job=pending.shift();try{
    const result=await QA.client.rpc('qa_vnext_job_detail',{p_job_id:job.jobId});
+   if(request!==loadRequest)return;
    if(result.error||!result.data||!Array.isArray(result.data.assignments)){failures++;continue;}
    const data=result.data;job.isRequester=data.is_requester===true;
    for(const a of job.departmentAssignments){const source=data.assignments.find(x=>String(x.assignment_id)===a.assignmentId);if(!source)continue;
     a.rawStatus=String(source.status||a.rawStatus).toUpperCase();a.chartStatus=groupStatus(a.rawStatus);
-    a.approvedAt=source.approved_at||null;a.approvalRequestedAt=source.approval_requested_at||null;a.responsibleUser=source.responsible_user||null;
+    a.approvedAt=source.approved_at||null;a.approvalRequestedAt=source.approval_requested_at||null;
+    a.selfReview=a.selfResponse&&a.rawStatus==='IN_PROGRESS'&&Boolean(a.approvalRequestedAt)&&!a.approvedAt;
+    a.selfReturned=a.selfResponse&&a.rawStatus==='IN_PROGRESS'&&!a.approvalRequestedAt&&Boolean(source.requester_review_reason);
+    if(a.selfReview)a.chartStatus='WAITING_REVIEW';a.responsibleUser=source.responsible_user||null;
     a.unrelatedRequestedAt=source.unrelated_requested_at||null;a.unrelatedDecidedAt=source.unrelated_decided_at||null;a.needsRework=Boolean(source.needs_rework);
     a.metadataLoaded=true;
    }
@@ -311,20 +439,48 @@ async function loadRoleMetadata(jobs){
  });await Promise.all(workers);return failures;
 }
 
-async function load(){
- $('feedback').textContent='กำลังโหลดสถิติรวมและรายการงานที่มีสิทธิ์ดู...';
- globalAggregate=null;
+// The catalog enriches only the visible page. Its row order uses the issue code.
+const catalogRequested=new WeakSet();
+let visibleCatalogJobs=[],catalogMetadataRunning=false;
+function queueCatalogMetadata(rows){
+ visibleCatalogJobs=[...new Set(rows.map(row=>row.job))]
+  .filter(job=>job.workflowVisible&&job.departmentAssignments.some(a=>a.assignmentId));
+ if(!catalogMetadataRunning)void refreshCatalogMetadata();
+}
+async function refreshCatalogMetadata(){
+ catalogMetadataRunning=true;
  try{
-   if(!allJobsMode){
-    const {data,error}=await window.QA.client.rpc('qa_vnext_receivers',{});
-    if(error)throw error;
-    if(!Array.isArray(data))throw new Error('Invalid receiver settings response');
-    receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];receiverError='';
-    await refreshSummary();
-   }
+  let jobs;
+  while((jobs=visibleCatalogJobs.filter(job=>!catalogRequested.has(job))).length){
+   const request=loadRequest;
+   const batch=jobs.slice(0,4);
+   batch.forEach(job=>catalogRequested.add(job));
+   await loadRoleMetadata(batch,request);
+   if(request===loadRequest)renderRows();
+  }
+ }finally{catalogMetadataRunning=false;}
+}
+async function refreshReceivers(request){
+ try{
+  const {data,error}=await QA.client.rpc('qa_vnext_receivers',{});
+  if(error)throw error;
+  if(!Array.isArray(data))throw new Error('Invalid receiver settings response');
+  if(request!==loadRequest)return;
+  receiverCodes=[...new Set(data.filter(x=>x.enabled===true).map(x=>String(x.code||'').trim()).filter(Boolean))];
+  receiverError='';
+ }catch(e){if(request!==loadRequest)return;receiverError=e.message||String(e);}
+ renderCharts(selectedGlobalCounts());scheduleDashboardFit();
+}
+async function load(){
+ const request=++loadRequest;
+ visibleCatalogJobs=[];
+ $('feedback').textContent='กำลังโหลดรายการงานที่มีสิทธิ์ดู...';
+ if(!allJobsMode){void refreshReceivers(request);void refreshSummary();}
+ try{
    const profile=window.QA?.profile||{};
    const listRpc=allJobsMode?'qa_all_jobs_list_v1':'qa_dashboard_department_issue_list';
    const {data:rows,error:listError}=await window.QA.client.rpc(listRpc);
+   if(request!==loadRequest)return;
    if(listError){
     if(allJobsMode&&['PGRST202','42883'].includes(String(listError.code)))throw new Error('กรุณาติดตั้ง SQL ชุดเปิดดูงานทั้งหมด');
     throw new Error('รายการงาน: '+listError.message);
@@ -337,21 +493,34 @@ async function load(){
      jobId:String(r.job_id||''),carCode:String(r.car_code||r.job_id||''),
      customerName:String(r.customer_name||''),country:String(r.country||''),
      serialNo:String(r.serial_no||''),fromDepartment:String(r.from_department||''),
-     createdDateTime:String(r.created_at||''),createdBy:r.created_by||'',isRequester:r.is_requester===true,workflowVisible:r.workflow_visible===true,issueCodes:new Map(),
+     createdDateTime:String(r.created_at||''),createdBy:r.created_by||'',isRequester:r.is_requester===true,workflowVisible:r.workflow_visible===true,
      departmentAssignments:[...(r.assignments||[]),...(allJobsMode&&r.unassigned_issues?.length
        ? [{status:r.status,issues:r.unassigned_issues,workflow_visible:r.workflow_visible}] : [])]
        .filter(a=>allJobsMode||!localRole||norm(r.from_department)===department||norm(a.department_code)===department)
        .map(a=>({department:String(a.department_code||''),assignmentId:String(a.assignment_id||''),
-          metadataLoaded:false,workflowVisible:a.workflow_visible===true,isMyWork:a.is_my_work===true,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
-          chartStatus:groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
+          metadataLoaded:false,selfResponse:a.self_response===true,selfReview:a.self_review_pending===true||(a.self_response===true&&a.status==='IN_PROGRESS'&&Boolean(a.approval_requested_at)),
+          selfReturned:a.self_returned===true,workflowVisible:a.workflow_visible===true,isMyWork:a.is_my_work===true,rawStatus:String(a.status||'').toUpperCase(),approvedAt:a.approved_at||null,reviewRound:Number(a.review_round)||null,approvalRequestedAt:a.approval_requested_at||null,unrelatedRequestedAt:a.unrelated_requested_at||null,unrelatedDecidedAt:a.unrelated_decided_at||null,needsRework:Boolean(a.needs_rework),
+          chartStatus:a.self_review_pending===true||(a.self_response===true&&a.status==='IN_PROGRESS'&&a.approval_requested_at)?'WAITING_REVIEW':groupStatus(a.status),issues:Array.isArray(a.issues)?a.issues:[]}))
    })).filter(j=>j.departmentAssignments.length>0).sort((a,b)=>dt(b)-dt(a));
-   const [reviewLoadFailures]=await Promise.all([loadRoleMetadata(allJobsMode?all.filter(j=>j.workflowVisible&&j.departmentAssignments.some(a=>a.assignmentId)):all),refreshReadStates()]);
-   if(returningView)restoreList(returningView.state);else page=0;render();
+   if(returningView)restoreList(returningView.state);else page=0;
+   issueReadStates=new Map();
+   render();
    if(returningView){const y=Number(returningView.state?.scrollY)||0;requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo({top:Math.max(0,y),behavior:'instant'})));returningView=null;}
-   $('feedback').textContent=allJobsMode?'':`รายการรับเข้าและแจ้งออกที่มีสิทธิ์เข้าถึง ${all.reduce((n,j)=>n+issueRowsFor(j).length,0)} ปัญหา`+(reviewLoadFailures?' · โหลดสิทธิ์หรือรายละเอียดสถานะบางรายการไม่สำเร็จ โปรดเปิดใบงานตรวจสอบ':'');
- }catch(e){all=[];base=[];receiverError=String(e?.message||e);render();
-   $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+receiverError;
+   const feedback=()=>'รายการรับเข้าและแจ้งออกที่มีสิทธิ์เข้าถึง '+all.reduce((n,j)=>n+issueRowsFor(j).length,0)+' ปัญหา';
+   $('feedback').textContent=allJobsMode?'':feedback();
+   void refreshReadStates().then(()=>{if(request===loadRequest)renderRows();}).catch(()=>{});
+   if(!allJobsMode){
+    const reviewLoadFailures=await loadRoleMetadata(all,request);
+    if(request!==loadRequest)return;
+    render();
+    if(reviewLoadFailures)$('feedback').textContent=feedback()+' · โหลดรายละเอียดสถานะบางรายการไม่สำเร็จ โปรดเปิดใบงานตรวจสอบ';
+   }
+ }catch(e){
+   if(request!==loadRequest)return;
+   all=[];base=[];render();
+   $('feedback').textContent='โหลดรายการที่มีสิทธิ์ดูไม่สำเร็จ: '+String(e?.message||e);
  }
+
 }
 
 if(!window.QA?.run){document.addEventListener('DOMContentLoaded',()=>{$('feedback').textContent='ไม่พบระบบ API กรุณาตรวจสอบ config.js และ supabase-api.js'});}else document.addEventListener('DOMContentLoaded',()=>{window.QA.whenReady().then(init).catch(e=>{$('feedback').textContent=e?.message||String(e)})});
