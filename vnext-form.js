@@ -141,10 +141,12 @@
   const files=[...p.images.map((f,i)=>({f,kind:'image',i})),...p.video.map((f,i)=>({f,kind:'video',i}))];
   files.forEach(({f,kind,i})=>{
    const id=kind+'-'+i;const item=document.createElement('div');item.className='vn-file-item';
-   const src=URL.createObjectURL(f);previewUrls.push(src);const media=document.createElement(kind==='image'?'img':'video');media.src=src;media.title='คลิกเพื่อดูตัวอย่าง';
-   if(kind==='image')media.onclick=()=>window.open(src,'_blank','noopener');else{media.controls=true;media.preload='metadata';}
+   const src=URL.createObjectURL(f);previewUrls.push(src);const media=document.createElement(kind==='image'?'img':'video');media.src=src;const image=kind==='image';
+   const full=QAMediaViewer.createTrigger(document,image?'IMAGE':'VIDEO',()=>src,image?{thumbnail:media}:{inlineVideo:media});
+   if(image)media.alt=f.name;else media.preload='metadata';
    const note=document.createElement('textarea');note.placeholder='หมายเหตุ';note.maxLength=2000;note.value=p.notes[id]||'';note.oninput=()=>p.notes[id]=note.value;
-   item.append(media,note);
+   if(!image)item.append(media);
+   item.append(full,note);
    if(kind==='image'&&window.V38ImageEditor){const edit=document.createElement('button');edit.type='button';edit.textContent='แก้ไขรูป';edit.onclick=async()=>{try{const result=await window.V38ImageEditor.edit(f);if(result){p.images[i]=result;updateFiles()}}catch(e){status('แก้ไขรูปไม่สำเร็จ: '+err(e),true)}};item.append(edit)}
    const remove=document.createElement('button');remove.type='button';remove.textContent='ลบ';remove.onclick=()=>{if(kind==='image'){p.images.splice(i,1);const next={};for(let x=0;x<p.images.length;x++)next['image-'+x]=p.notes['image-'+(x>=i?x+1:x)]||'';next['video-0']=p.notes['video-0']||'';p.notes=next;}else{p.video.splice(i,1);delete p.notes['video-0'];}updateFiles()};item.append(remove);
    grid.append(item);

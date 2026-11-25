@@ -117,10 +117,24 @@ async function loadMedia(){try{return {rows:await rpc('qa_v52_media_list',{p_job
 async function mediaFor(issueIds,assignmentId,canEdit=false,round=null){const permitted=media.filter(m=>(m.scope==='ISSUE'&&issueIds.includes(m.issue_id))||(m.scope==='ASSIGNMENT'&&m.assignment_id===assignmentId&&(round===null||Number(m.response_round||1)===Number(round))));
  if(!permitted.length)return '';
  const cards=await Promise.all(permitted.map(async m=>{try{const [view,downloadLink]=await Promise.all([getUrl(m.storage_path),getUrl(m.storage_path,true).catch(()=>null)]),download=downloadLink||view;
- const preview=m.kind==='IMAGE'?`<img src="${esc(view)}" alt="ภาพประกอบ">`:`<video controls preload="metadata" src="${esc(view)}"></video>`;
+ const image=m.kind==='IMAGE',data=`data-job-media-path="${esc(m.storage_path)}" data-job-media-kind="${image?'IMAGE':'VIDEO'}"`;
+ const preview=image
+  ? `<button type="button" class="qa-media-picture" ${data} aria-label="ดูรูป"><img src="${esc(view)}" alt="ภาพแนบ"></button>`
+  : `<video class="qa-media-video" controls playsinline controlslist="nofullscreen" preload="metadata" src="${esc(view)}"></video>`;
+ const open=`<button type="button" class="qa-media-open" ${data}>${image?'ดูรูป':'ดูวิดีโอเต็มจอ'}</button>`;
  const note=canEdit?`<label>หมายเหตุ<textarea class="media-note-input" data-attachment="${esc(m.attachment_id)}" maxlength="2000">${esc(m.note||'')}</textarea></label><button type="button" class="media-note-save" data-attachment="${esc(m.attachment_id)}">บันทึกหมายเหตุ</button>`:`<p class="media-note">${esc(m.note||'')}</p>`;
- return `<div class="media-item">${preview}${note}<a href="${esc(download)}" download target="_blank" rel="noopener">ดาวน์โหลด</a></div>`;
+ return `<div class="media-item">${preview}${open} ${note}<a href="${esc(download)}" download target="_blank" rel="noopener">ดาวน์โหลด</a></div>`;
  }catch(e){return `<div class="media-item">ไม่สามารถสร้างลิงก์ไฟล์ได้: ${esc(e.message)}</div>`;}}));return `<div class="media">${cards.join('')}</div>`;}
+
+document.getElementById('captureArea').addEventListener('click', event => {
+ const button=event.target.closest('button[data-job-media-path]');
+ if(!button)return;
+ QAMediaViewer.open(button,{
+  kind:button.dataset.jobMediaKind,
+  getSource:()=>getUrl(button.dataset.jobMediaPath),
+  inlineVideo:button.closest('.media-item')?.querySelector('video')
+ });
+});
 
 // The persisted routing event retains the sender's authorization and idempotency.
 // Send the affected issue with its current receiving departments.

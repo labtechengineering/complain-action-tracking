@@ -1,0 +1,129 @@
+.qa-media-open {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #235785;
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+}
+
+.qa-media-picture {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+video.qa-media-video,
+.media-item video.qa-media-video {
+  display: block;
+  width: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: #141414;
+}
+
+video.qa-media-video:fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+video.qa-media-video:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+dialog.qa-media-viewer[open] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  border: 0;
+  background: #141414;
+  color: #fff;
+}
+
+.qa-media-viewer [hidden] { display: none !important; }
+
+.qa-media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+}
+
+.qa-media-viewer-bar button {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid #909090;
+  border-radius: 6px;
+  background: #272727;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.qa-media-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qa-media-stage > img,
+.qa-media-stage > video {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  object-fit: contain;
+  object-position: center;
+}
+
+.qa-media-stage > p {
+  position: absolute;
+  top: 12px;
+  margin: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #141414;
+  color: #fff;
+  text-align: center;
+}
+
+@media print {
+  .qa-media-open, .qa-media-viewer { display: none !important; }
+}
