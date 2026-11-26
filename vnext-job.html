@@ -80,6 +80,25 @@
 .issue-disclosure>summary .qa-severity.S3{background:#ffac27;color:#372000;}
 .issue-disclosure>summary .qa-severity.S4{background:#ffea56;color:#302700;}
 
+ .request-issue-dates-cost{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+ .request-issue-dates-cost label,.request-issue-dates-cost input{width:100%;min-width:0;max-width:100%;}
+ .issue-facts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;font-size:13px;}
+ .issue-facts>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 6px;margin:0;}
+ .issue-facts dt{font-weight:600;}
+ .issue-facts dt::after{content:":";}
+ .issue-facts dd{margin:0;}
+ .issue-damage-fact{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;}
+ .issue-damage-edit{background:transparent;color:inherit;border:0;padding:2px 4px;text-decoration:underline;font:inherit;cursor:pointer;}
+ #issueDamageDialog{width:min(400px,calc(100% - 32px));max-height:calc(100% - 32px);box-sizing:border-box;border:1px solid #bfd0e1;border-radius:12px;padding:20px;background:#fff;color:#24334a;}
+ #issueDamageDialog::backdrop{background:#12284066;}
+ #issueDamageDialog h2{margin:0 0 14px;}
+ #issueDamageDialog input{width:100%;box-sizing:border-box;margin-top:6px;}
+ #issueDamageDialog .issue-damage-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+ .issue-damage-dialog-status{min-height:1.2em;margin:8px 0 0;font-size:13px;}
+ .issue-damage-dialog-status:empty{display:none;}
+ @media print{.issue-facts>div:has(.issue-damage-fact>span[hidden]),#issueDamageDialog{display:none!important;}}
+ @media(max-width:480px){.request-issue-dates-cost{grid-template-columns:minmax(0,1fr);}}
+ 
 /* Hide intermediate DOM while async media and the final issue folds are assembled. */
 #captureArea[data-detail-state=loading]>#jobTracker,#captureArea[data-detail-state=loading]>#details,#captureArea[data-detail-state=loading]>#assignments,#captureArea[data-detail-state=loading]>#jobHistory{display:none!important}
 #captureArea[data-detail-state=error]>#jobTracker,#captureArea[data-detail-state=error]>#assignments,#captureArea[data-detail-state=error]>#jobHistory{display:none!important}
@@ -105,6 +124,14 @@
 <body class="qa-auth-loading"><main class="page" id="captureArea" data-detail-state="loading" aria-busy="true"><div class="job-topbar"><h1>Complain &amp; Action Tracking</h1><div class="job-toolbar no-print"><a class="job-home" href="dashboard.html">กลับหน้าหลัก</a><button hidden id="editRequestBtn" type="button" hidden>แก้ไขใบแจ้ง</button><button hidden id="appendIssueBtn" type="button">+ เพิ่มปัญหา</button><button id="pdfButton">Export PDF</button></div></div>
 <div id="feedback" role="status" class="vn-status"></div>
 <p id="detailLoading" class="sheet" role="status">กำลังโหลดรายละเอียด...</p>
-<section id="jobTracker" class="sheet job-tracker compact-record" aria-label="ข้อมูลและสถานะใบงาน"><div class="record-heading"><h2 id="jobTrackerNumber"></h2><span id="catalogReadOnly" class="catalog-read-only" hidden>ดูอย่างเดียว</span><div class="record-route" aria-label="แผนกผู้แจ้งถึงแผนกรับเรื่อง"><b id="recordOrigin"></b><span id="recordRouteArrow" aria-hidden="true">→</span><b id="recordReceivers"></b></div></div><p id="trackerScope" class="tracker-scope" hidden></p><div id="departmentChips" class="department-chips" aria-label="กรองปัญหาและโฟลว์ตามแผนก" hidden></div><div class="tracker-stages record-flow"><span class="track-stage" data-step="OPEN"><span class="track-node" aria-hidden="true">1</span>แจ้งงาน</span><span class="track-stage" data-step="IN_PROGRESS"><span class="track-node" aria-hidden="true">2</span>ดำเนินการ</span><span class="track-stage" data-step="WAITING_REVIEW"><span class="track-node" aria-hidden="true">3</span>รอตรวจรับ</span><span class="track-stage" data-step="CLOSED"><span class="track-node" aria-hidden="true">4</span>สำเร็จ</span></div><div id="details"></div></section>
+<section id="jobTracker" class="sheet job-tracker compact-record" aria-label="ข้อมูลและสถานะใบงาน"><div class="record-heading"><h2 id="jobTrackerNumber"></h2><span id="catalogReadOnly" class="catalog-read-only" hidden>ดูข้อมูลใบงาน</span><div class="record-route" aria-label="แผนกผู้แจ้งถึงแผนกรับเรื่อง"><b id="recordOrigin"></b><span id="recordRouteArrow" aria-hidden="true">→</span><b id="recordReceivers"></b></div></div><p id="trackerScope" class="tracker-scope" hidden></p><div id="departmentChips" class="department-chips" aria-label="กรองปัญหาและโฟลว์ตามแผนก" hidden></div><div class="tracker-stages record-flow"><span class="track-stage" data-step="OPEN"><span class="track-node" aria-hidden="true">1</span>แจ้งงาน</span><span class="track-stage" data-step="IN_PROGRESS"><span class="track-node" aria-hidden="true">2</span>ดำเนินการ</span><span class="track-stage" data-step="WAITING_REVIEW"><span class="track-node" aria-hidden="true">3</span>รอตรวจรับ</span><span class="track-stage" data-step="CLOSED"><span class="track-node" aria-hidden="true">4</span>สำเร็จ</span></div><div id="details"></div></section>
 <div id="assignments"></div><section id="jobHistory" class="sheet"><h2>ประวัติการดำเนินงาน</h2><div id="historyRows" class="history-rows"></div></section></main>
-<script src="media-viewer.js?v=media-viewer-20261125-r14" defer></script><script src="photo-upload.js?v=mobile-photos-20261125-r12" defer></script><script src="v38-image-editor.js?v=mobile-photos-20261125-r12" defer></script><script src="attachment-picker.js?v=media-viewer-20261125-r14" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="vnext-job.js?v=r16-dashboard-severity-detail" defer></script><script src="admin-job-trash.js?v=job-buttons-20261110-r1" defer></script></body></html>
+<dialog id="issueDamageDialog" class="no-print" aria-labelledby="issueDamageTitle">
+ <form>
+  <h2 id="issueDamageTitle">มูลค่าความเสียหาย</h2>
+  <label>ยอด (บาท)<input name="amount" type="text" inputmode="decimal" pattern="[0-9]{1,10}([.][0-9]{1,2})?" maxlength="13" title="ตัวเลขตั้งแต่ 0 บาท ทศนิยมไม่เกิน 2 ตำแหน่ง" autofocus></label>
+  <p class="issue-damage-dialog-status" role="status" aria-live="polite"></p>
+  <div class="issue-damage-dialog-actions"><button type="button" class="secondary" data-cancel>ยกเลิก</button><button type="submit">ตกลง</button></div>
+ </form>
+</dialog>
+<script src="media-viewer.js?v=media-viewer-20261125-r14" defer></script><script src="photo-upload.js?v=mobile-photos-20261125-r12" defer></script><script src="v38-image-editor.js?v=mobile-photos-20261125-r12" defer></script><script src="attachment-picker.js?v=media-viewer-20261125-r14" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="vnext-job.js?v=r17-issue-damage-all" defer></script><script src="admin-job-trash.js?v=job-buttons-20261110-r1" defer></script></body></html>
