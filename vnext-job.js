@@ -700,6 +700,7 @@ function openDamageEditor(issue,updateAmount){
  dialog.showModal();
  input.select();
 }
+const issueDueDateFormat=new Intl.DateTimeFormat('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'Asia/Bangkok'});
 function buildIssueFacts(issue,requesterDue){
  const facts=document.createElement('dl');facts.className='issue-facts';
  const addFact=(className,label,value,date)=>{
@@ -716,13 +717,13 @@ function buildIssueFacts(issue,requesterDue){
  };
  const occurrence=String(issue.occurrence_type??'').trim().toUpperCase();
  if(occurrence==='OLD'||occurrence==='NEW')addFact('issue-occurrence','ประเภท',occurrence==='OLD'?'ปัญหาเก่า':'ปัญหาใหม่');
- if(requesterDue)addFact('issue-request-due','วันกำหนดเสร็จ',formatRequestDate(requesterDue),requesterDue);
+ if(requesterDue)addFact('issue-request-due','กำหนดเสร็จ',issueDueDateFormat.format(new Date(requesterDue+'T00:00:00+07:00')),requesterDue);
  if(issue.issue_id&&issue.issue_id!=='legacy'){
   const field=addFact('issue-damage-row','มูลค่าความเสียหาย','');field.className='issue-damage-fact';
   const amount=document.createElement('span'),button=document.createElement('button');
   button.type='button';button.className='issue-damage-edit no-print';
-  button.textContent='แก้ไขยอด';
-  button.setAttribute('aria-label','แก้ไขยอดมูลค่าความเสียหาย ปัญหา '+issue.issue_number);
+  button.textContent='แก้ไขมูลค่า';
+  button.setAttribute('aria-label','แก้ไขมูลค่าความเสียหาย ปัญหา '+issue.issue_number);
   const updateAmount=value=>{
    amount.textContent=damageAmountText(value);
    amount.hidden=value==null;

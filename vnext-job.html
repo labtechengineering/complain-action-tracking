@@ -82,24 +82,15 @@
 
  .request-issue-dates-cost{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
  .request-issue-dates-cost label,.request-issue-dates-cost input{width:100%;min-width:0;max-width:100%;}
- .issue-facts{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1fr) auto;align-items:center;gap:12px 27px;margin:0 0 12px;line-height:1.55;}
- .issue-facts>div{min-width:0;margin:0;}
- .issue-facts dt{margin:0 0 2px;color:#4b6481;font-size:12px;font-weight:400;}
- .issue-facts dd{margin:0;font-size:14px;font-weight:600;}
- .issue-facts>.issue-occurrence{grid-column:1;}
- .issue-facts>.issue-request-due{grid-column:2;}
- .issue-facts>.issue-damage-row{grid-column:3;display:grid;grid-template-columns:auto auto;align-items:center;gap:0 18px;margin-inline-start:5px;padding-inline-start:24px;border-inline-start:1px solid #e2eaf3;}
- .issue-damage-row>dt{grid-column:1;grid-row:1;}
- .issue-damage-row:has(.issue-damage-fact>span[hidden])>dt{grid-row:1/span 2;margin:0;}
- .issue-damage-row>.issue-damage-fact{display:contents;}
- .issue-damage-fact>span{grid-column:1;grid-row:2;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
- .issue-facts .issue-damage-edit{grid-column:2;grid-row:1/span 2;justify-self:end;margin:0;background:#f2f7fc;border:1px solid #ccd9eb;color:#244e7b;border-radius:7px;padding:5px 10px;font-family:inherit;font-size:12px;font-weight:600;line-height:1.45;cursor:pointer;white-space:nowrap;}
- .issue-facts .issue-damage-edit:hover{background:#e7f0fa;}
- @media(max-width:570px){
-  .issue-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;}
-  .issue-facts>.issue-damage-row{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto;margin:0;border-inline-start:0;border-top:1px solid #e2eaf3;padding:10px 0 0;}
-  .issue-facts>.issue-damage-row:first-child{border-top:0;padding-top:0;}
- }
+ .issue-facts{display:grid;gap:7px;margin:0 0 12px;font-size:14px;line-height:1.55;}
+ .issue-facts>div{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .38rem;margin:0;}
+ .issue-facts dt{font-weight:600;}
+ .issue-facts dt::after{content:" :";}
+ .issue-facts dd{margin:0;font:inherit;}
+ .issue-facts .issue-damage-fact{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .6rem;min-width:0;}
+ .issue-damage-fact>span{font-variant-numeric:tabular-nums;}
+ .issue-facts .issue-damage-fact .issue-damage-edit{margin:0;background:transparent;border:0;color:#5f6d7c;padding:2px 0;font-family:inherit;font-size:.78rem;font-weight:400;line-height:1.4;text-decoration:underline;text-underline-offset:2px;cursor:pointer;white-space:nowrap;}
+ .issue-facts .issue-damage-fact .issue-damage-edit:hover{color:#33485e;box-shadow:none;}
  #issueDamageDialog{width:min(400px,calc(100% - 32px));max-height:calc(100% - 32px);box-sizing:border-box;border:1px solid #bfd0e1;border-radius:12px;padding:20px;background:#fff;color:#24334a;}
  #issueDamageDialog::backdrop{background:#12284066;}
  #issueDamageDialog h2{margin:0 0 14px;}
@@ -145,4 +136,4 @@
   <div class="issue-damage-dialog-actions"><button type="button" class="secondary" data-cancel>ยกเลิก</button><button type="submit">ตกลง</button></div>
  </form>
 </dialog>
-<script src="media-viewer.js?v=media-viewer-20261125-r14" defer></script><script src="photo-upload.js?v=mobile-photos-20261125-r12" defer></script><script src="v38-image-editor.js?v=mobile-photos-20261125-r12" defer></script><script src="attachment-picker.js?v=media-viewer-20261125-r14" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="vnext-job.js?v=r17-issue-damage-layout" defer></script><script src="admin-job-trash.js?v=job-buttons-20261110-r1" defer></script></body></html>
+<script src="media-viewer.js?v=media-viewer-20261125-r14" defer></script><script src="photo-upload.js?v=mobile-photos-20261125-r12" defer></script><script src="v38-image-editor.js?v=mobile-photos-20261125-r12" defer></script><script src="attachment-picker.js?v=media-viewer-20261125-r14" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="vnext-job.js?v=r17-issue-damage-inline" defer></script><script src="admin-job-trash.js?v=job-buttons-20261110-r1" defer></script></body></html>
