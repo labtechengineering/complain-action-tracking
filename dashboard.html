@@ -1,4 +1,15 @@
 <!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="qa-page" content="dashboard"><meta name="viewport" content="width=device-width,initial-scale=1"><script>const dashboardView=new URLSearchParams(location.search).get('view');if(['all','notifications'].includes(dashboardView))document.documentElement.dataset.dashboardView=dashboardView;</script><style>
+  .dashboard-compact .donutpanel{position:relative}
+ .dashboard-compact .donutpanel>h2{padding-inline-end:102px}
+ .dashboard-compact .donutpanel .qa-download-overview{position:absolute;inset-block-start:10px;inset-inline-end:12px;padding:3px 5px;margin:0;border:0;border-radius:4px;background:transparent;color:#4b647c;box-shadow:none;font-family:inherit;font-size:12px;font-weight:400;line-height:1.5;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+ .dashboard-compact .donutpanel .qa-download-overview:hover{color:#244e7b;background:transparent;box-shadow:none}
+ .qa-download-overview:disabled{opacity:.65;cursor:wait}
+ #dashboardImageStatus{margin:4px 0;font-size:12px;color:#8b3d29}
+ #dashboardImageStatus:empty{display:none}
+ .dashboard-compact .main.qa-dashboard-image{width:1440px;max-width:none;padding:12px 15px 12px!important;margin:0;background:linear-gradient(140deg,#f0f4fa,#dee8f5)}
+ .dashboard-compact .main.qa-dashboard-image .donutpanel>h2{padding-inline-end:0}
+ .dashboard-compact .qa-dashboard-image :is(.stat,.theme-stat-icon){box-shadow:none!important}
+ .qa-dashboard-image-time{font-size:13px;color:#365570;white-space:nowrap}
  #viewAll{display:inline-flex;align-items:center;padding:8px 12px;text-decoration:none}
  #backDashboard,#allJobFilters[hidden]{display:none!important}
  html[data-dashboard-view="all"] :is(.charts,.cards,#viewAll,#issueSummary){display:none!important}
@@ -121,7 +132,8 @@
 </div>
 <div id="activeJobFilters" aria-label="ตัวกรองที่ใช้อยู่" hidden></div>
 <div class="cards"><button class="stat active" data-status="all"><span>ปัญหาทั้งหมด</span><strong id="nTotal">—</strong></button><button class="stat" data-status="IN_PROGRESS"><span>กำลังดำเนินการ</span><strong id="nProgress">—</strong></button><button class="stat" data-status="WAITING_REVIEW"><span>รอตรวจสอบ</span><strong id="nReview">—</strong></button><button class="stat" data-status="CLOSED"><span>สำเร็จ</span><strong id="nDone">—</strong></button></div>
-<div class="charts"><section class="panel barpanel"><h2>จำนวนงาน</h2><div id="barLegend" class="legend"></div><div class="bargraph"><div id="axis" class="axis"></div><div id="plot" class="plot"></div></div></section><section class="panel donutpanel"><h2>สถานะงาน</h2><div class="donut-layout"><div class="donut-wrap"><div id="donut" class="donut"><div class="donut-center"><strong id="donutTotal">0</strong><span class="donut-title">สถานะงาน</span><small>งาน</small></div></div></div><div id="donutLegend" class="donut-legend"></div></div></section></div>
+<div class="charts"><section class="panel barpanel"><h2>จำนวนงาน</h2><div id="barLegend" class="legend"></div><div class="bargraph"><div id="axis" class="axis"></div><div id="plot" class="plot"></div></div></section><section class="panel donutpanel"><h2>สถานะงาน</h2><button id="downloadDashboardImage" class="qa-download-overview" type="button">ดาวน์โหลดรูป</button><div class="donut-layout"><div class="donut-wrap"><div id="donut" class="donut"><div class="donut-center"><strong id="donutTotal">0</strong><span class="donut-title">สถานะงาน</span><small>งาน</small></div></div></div><div id="donutLegend" class="donut-legend"></div></div></section></div>
+<p id="dashboardImageStatus" role="status"></p>
 <details id="issueSummary" class="qa-issue-summary">
  <summary>สรุปปัญหา</summary>
  <div class="qa-issue-charts">
@@ -135,4 +147,4 @@
  <table><thead><tr><th scope="col">ระดับ</th><th scope="col">ความรุนแรง</th><th scope="col">การจัดการ</th><th scope="col">กำหนดเวลา</th></tr></thead><tbody></tbody></table>
  <form method="dialog"><button class="secondary">ปิด</button></form>
 </dialog>
-</main><script src="in-app-notifications.js?v=r18" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r18-in-app" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
+</main><script src="in-app-notifications.js?v=r18" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r18-in-app" defer></script><script src="dashboard-image-export.js?v=r19-dashboard-image" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
