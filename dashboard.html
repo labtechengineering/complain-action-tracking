@@ -10,7 +10,7 @@
  #allJobFilters .job-filter-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
  #activeJobFilters{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 0 8px}
  #activeJobFilters button{padding:3px 8px;font-size:12px;border-radius:20px}
- .dashboard-compact .charts{--qa-dashboard-chart-height:250px}
+ .dashboard-compact .charts{--qa-dashboard-chart-height:clamp(270px,36.8vh,398px)}
  .dashboard-compact .charts>.panel{height:var(--qa-dashboard-chart-height);min-height:0;min-width:0;display:flex;flex-direction:column}
  .dashboard-compact .charts .bargraph{flex:1;min-height:0;height:auto!important}
  .dashboard-compact .charts .legend{flex:none}
@@ -25,6 +25,31 @@
  #issueSummary>summary{width:max-content;max-width:100%;padding:3px 5px;list-style-position:inside;font-size:13px;font-weight:600!important;color:inherit}
  #issueSummary[open]{padding:7px 10px 10px;border:1px solid #e2e8f0;background:#fff;color:#24354b}
  #issueSummary[open] .qa-issue-ring{--qa-issue-surface:#fff}
+ @media(min-width:801px){
+  html:not([data-dashboard-view="all"]) body.dashboard-compact .main{
+   max-width:none;
+   padding-inline:clamp(16px,1.5vw,36px)!important;
+  }
+ }
+ @media(min-width:1250px){
+  html body.dashboard-compact .charts .donut-layout{
+   --qa-status-donut-size:clamp(164px,calc(var(--qa-dashboard-chart-height) - 105px),216px);
+  }
+  html body.dashboard-compact .charts .donut-wrap{flex-basis:var(--qa-status-donut-size)}
+  html body.dashboard-compact .charts .donut{
+   width:var(--qa-status-donut-size);height:var(--qa-status-donut-size);
+  }
+ }
+ @media(max-width:1000px){
+  html body.dashboard-compact .charts{
+   --qa-dashboard-chart-height:270px;
+   grid-template-columns:minmax(0,1fr);
+  }
+ }
+ @media(max-width:600px){
+  html body.dashboard-compact .charts .plot{padding-inline:clamp(5px,2vw,12px)}
+  html body.dashboard-compact .charts .bar-item{min-width:32px}
+ }
  @media(max-width:480px){
   #allJobFilters .job-filter{flex:1 1 130px}
   #allJobFilters .job-filter :is(select,input){width:100%}
@@ -39,17 +64,38 @@
 <link rel="stylesheet" href="v40.css?v=release-20261026-v3"><style>.pill.OPEN{background:#fef3c7;color:#92400e}.pill.CANCELLED{background:#e2e8f0;color:#475569}.pill.UNKNOWN{background:#f1f5f9;color:#64748b}.pill.MIXED{background:#e2e8f0;color:#334155}.head-approval-flag{display:inline-block;margin:4px 0 0 8px;padding:3px 8px;border-radius:999px;background:#fff0c2;color:#8a4b00;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid #eecb73}
 /* V50.3: Dashboard latest-issues table only. */
 .listpanel .list-scroll{overflow-x:auto;}
-.listpanel .list-table{min-width:1100px;width:100%;}
+.listpanel .list-table{min-width:1200px;width:100%;}
+.listpanel .list-table:has(.trash-row){min-width:1264px;}
+.listpanel .list-table:has(.trash-row) .list-columns{margin-inline-end:64px;}
 .listpanel .list-columns,.listpanel .job-row{
   display:grid!important;
-  grid-template-columns:48px minmax(175px,1.55fr) minmax(105px,0.9fr) minmax(130px,1.2fr) minmax(98px,0.9fr) minmax(195px,2.3fr) minmax(142px,1.35fr) minmax(142px,1.2fr)!important;
+  grid-template-columns:48px minmax(175px,1.55fr) 46px minmax(105px,0.9fr) minmax(130px,1.2fr) minmax(98px,0.9fr) minmax(195px,2.3fr) minmax(142px,1.35fr) minmax(142px,1.2fr)!important;
   align-items:center;
   column-gap:12px;
 }
 .listpanel .list-columns>span,.listpanel .job-row>span{min-width:0;}
+@media(max-width:1450px){
+ .listpanel .list-table{min-width:980px;}
+ .listpanel .list-table:has(.trash-row){min-width:1044px;}
+ .listpanel .list-columns,.listpanel .job-row{
+  grid-template-columns:42px minmax(135px,1.25fr) 42px minmax(80px,.8fr) minmax(104px,1fr) minmax(85px,.85fr) minmax(145px,2fr) minmax(100px,1fr) minmax(124px,1fr)!important;
+  column-gap:8px;
+ }
+}
 .listpanel .job-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.listpanel .job-row>span:nth-child(6){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.listpanel .job-row>span:nth-child(7){overflow:visible;white-space:normal;}
+.listpanel .job-row>.job-status-cell{overflow:visible;white-space:normal;}
+.listpanel .severity-column{text-align:center;}
+.listpanel .severity-column .qa-severity{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:32px;min-height:21px;padding:1px 5px;margin:0;
+  border-radius:12px;font-size:12px;font-weight:700;line-height:1.3;
+}
+.listpanel .severity-column .qa-severity::before{content:none;}
+.listpanel .severity-column .qa-severity.S1{background:#8f0b20;color:#fff;}
+.listpanel .severity-column .qa-severity.S2{background:#dc2937;color:#fff;}
+.listpanel .severity-column .qa-severity.S3{background:#ffac27;color:#372000;}
+.listpanel .severity-column .qa-severity.S4{background:#ffea56;color:#302700;}
+.listpanel .severity-column [aria-label]{opacity:.68;}
 .listpanel .job-row>span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums;}
 .listpanel .head-approval-flag{display:inline-flex;align-items:center;margin:4px 0 0 0;padding:3px 7px;font-size:11px;line-height:1.2;max-width:100%;white-space:nowrap;}
 .listpanel .head-approval-flag{display:block!important;background:none!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:5px 0 0!important;color:#dc2626!important;font-size:12px!important;font-weight:400!important;white-space:nowrap!important}
@@ -89,8 +135,8 @@
  </div>
 </details>
 
-<section class="panel listpanel"><div class="listhead"><div><h2 id="listTitle">ปัญหาแจ้งล่าสุด</h2></div><div class="list-actions"><button id="exportExcel" class="excel-download" type="button" hidden disabled title="ดาวน์โหลดทุกช่วงเวลา ตามสิทธิ์ของคุณ">ดาวน์โหลด Excel</button><a id="viewAll" class="secondary" href="dashboard.html?view=all">ดูงานทั้งหมด</a></div></div><div class="list-scroll"><div class="list-table"><div class="list-columns"><span class="read-column" title="สถานะการเปิดดูของคุณ">การอ่าน</span><span>เลขที่ปัญหา</span><span>ชื่อลูกค้า</span><span>เครื่อง / Serial</span><span>จาก → ถึงแผนก</span><span>ปัญหา</span><span>สถานะ</span><span>วันที่แจ้ง</span></div><div id="jobRows"></div></div></div><div class="pagination" id="pagination" hidden><button id="prevPage" type="button" class="secondary">← ก่อนหน้า</button><span id="pageInfo"></span><button id="nextPage" type="button" class="secondary">ถัดไป →</button></div></section><p role="status" aria-live="polite" id="excelExportStatus" class="muted"></p><p role="status" id="feedback" class="muted"></p><dialog id="severityGuide" class="qa-issue-dialog" aria-label="เกณฑ์ระดับความรุนแรง"><b>เกณฑ์ระดับความรุนแรง</b>
+<section class="panel listpanel"><div class="listhead"><div><h2 id="listTitle">ปัญหาแจ้งล่าสุด</h2></div><div class="list-actions"><button id="exportExcel" class="excel-download" type="button" hidden disabled title="ดาวน์โหลดทุกช่วงเวลา ตามสิทธิ์ของคุณ">ดาวน์โหลด Excel</button><a id="viewAll" class="secondary" href="dashboard.html?view=all">ดูงานทั้งหมด</a></div></div><div class="list-scroll"><div class="list-table"><div class="list-columns"><span class="read-column" title="สถานะการเปิดดูของคุณ">การอ่าน</span><span>เลขที่ปัญหา</span><span class="severity-column" title="ระดับความรุนแรง">ระดับ</span><span>ชื่อลูกค้า</span><span>เครื่อง / Serial</span><span>จาก → ถึงแผนก</span><span>ปัญหา</span><span>สถานะ</span><span>วันที่แจ้ง</span></div><div id="jobRows"></div></div></div><div class="pagination" id="pagination" hidden><button id="prevPage" type="button" class="secondary">← ก่อนหน้า</button><span id="pageInfo"></span><button id="nextPage" type="button" class="secondary">ถัดไป →</button></div></section><p role="status" aria-live="polite" id="excelExportStatus" class="muted"></p><p role="status" id="feedback" class="muted"></p><dialog id="severityGuide" class="qa-issue-dialog" aria-label="เกณฑ์ระดับความรุนแรง"><b>เกณฑ์ระดับความรุนแรง</b>
  <table><thead><tr><th scope="col">ระดับ</th><th scope="col">ความรุนแรง</th><th scope="col">การจัดการ</th><th scope="col">กำหนดเวลา</th></tr></thead><tbody></tbody></table>
  <form method="dialog"><button class="secondary">ปิด</button></form>
 </dialog>
-</main><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r16-dashboard-3" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
+</main><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r16-dashboard-severity-detail" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
