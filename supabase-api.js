@@ -176,6 +176,11 @@
           const assignment=u.searchParams.get('assignment');
           if(/^[a-f\d-]{36}$/i.test(assignment||''))params.assignment=assignment;
         }
+        const notice=u.searchParams.get('notice');
+        if(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(notice||'')){
+          params.notice=notice;
+          if(u.searchParams.get('from')==='notifications')params.from='notifications';
+        }
         const hash=/^#issue-[a-f\d-]{36}$/i.test(u.hash)?u.hash:'';
         return QA.pageUrl('vnextJob',params)+hash;
       }

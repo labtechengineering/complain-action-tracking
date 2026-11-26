@@ -1,4 +1,4 @@
-<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="qa-page" content="dashboard"><meta name="viewport" content="width=device-width,initial-scale=1"><script>if(new URLSearchParams(location.search).get('view')==='all')document.documentElement.dataset.dashboardView='all';</script><style>
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="qa-page" content="dashboard"><meta name="viewport" content="width=device-width,initial-scale=1"><script>const dashboardView=new URLSearchParams(location.search).get('view');if(['all','notifications'].includes(dashboardView))document.documentElement.dataset.dashboardView=dashboardView;</script><style>
  #viewAll{display:inline-flex;align-items:center;padding:8px 12px;text-decoration:none}
  #backDashboard,#allJobFilters[hidden]{display:none!important}
  html[data-dashboard-view="all"] :is(.charts,.cards,#viewAll,#issueSummary){display:none!important}
@@ -38,7 +38,7 @@
   .dashboard-compact .charts .donut-center{width:66%;height:66%}
  }
  </style><title>Dashboard · Complain &amp; Action Tracking</title>
-<script src="app-release.js?v=chart-no-scale-20261110-r1" ></script><script src="config.js?v=release-20261026-v3"></script><script src="workflow-rules.js?v=admin-receive-20261112-r3"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-api.js?v=web-push-20261124-r11"></script><script src="job-status.js?v=release-20261026-v3"></script><script src="issue-read-state.js?v=release-20261026-v3"></script><script src="workflow-navigation.js?v=request-due-20261118-r6"></script><script src="navigation.js?v=admin-receive-20261112-r3"></script>
+<script src="app-release.js?v=chart-no-scale-20261110-r1" ></script><script src="config.js?v=release-20261026-v3"></script><script src="workflow-rules.js?v=admin-receive-20261112-r3"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-api.js?v=r18-in-app"></script><script src="job-status.js?v=release-20261026-v3"></script><script src="issue-read-state.js?v=release-20261026-v3"></script><script src="workflow-navigation.js?v=request-due-20261118-r6"></script><script src="navigation.js?v=admin-receive-20261112-r3"></script>
 <link rel="stylesheet" href="v40.css?v=release-20261026-v3"><style>.pill.OPEN{background:#fef3c7;color:#92400e}.pill.CANCELLED{background:#e2e8f0;color:#475569}.pill.UNKNOWN{background:#f1f5f9;color:#64748b}.pill.MIXED{background:#e2e8f0;color:#334155}.head-approval-flag{display:inline-block;margin:4px 0 0 8px;padding:3px 8px;border-radius:999px;background:#fff0c2;color:#8a4b00;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid #eecb73}
 /* V50.3: Dashboard latest-issues table only. */
 .listpanel .list-scroll{overflow-x:auto;}
@@ -80,8 +80,26 @@
 .listpanel .read-column{display:flex;align-items:center;justify-content:center;font-size:11px}
 .read-state{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;flex-shrink:0}
 .read-state.unread{background:#e9f0f8;color:#375b81}.read-state.read{color:#8a98a9}.read-state.unknown{color:#94a3b8}
-.workflow-notice{display:flex;align-items:flex-start;gap:5px;margin-top:5px;font-size:12px;line-height:1.4;white-space:normal}.workflow-notice svg{flex-shrink:0;margin-top:1px}.workflow-notice.action-required{color:#b42318}.workflow-notice.informative{color:#64748b}</style><style>.listhead .list-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.list-actions #exportExcel{background:#193b60;color:#fff;border:1px solid #193b60;font-weight:600}.list-actions #exportExcel:disabled{opacity:.6;cursor:wait}.list-actions #exportExcel[hidden]{display:none!important}#excelExportStatus:empty{display:none}#excelExportStatus{margin:8px 0;font-size:13px;overflow-wrap:anywhere}</style><link rel="manifest" href="web-push.webmanifest"><link rel="apple-touch-icon" href="web-push-icon-192.png"><link rel="stylesheet" href="issue-classification.css?v=r16"></head><body class="qa-auth-loading dashboard-compact"><main class="main">
-<header><a id="backDashboard" href="dashboard.html?from=all-jobs">← กลับหน้าหลัก</a><h1>Complaint &amp; Action Request Dashboard</h1><p id="welcome" class="welcome">สวัสดีผู้ใช้งาน</p></header>
+.workflow-notice{display:flex;align-items:flex-start;gap:5px;margin-top:5px;font-size:12px;line-height:1.4;white-space:normal}.workflow-notice svg{flex-shrink:0;margin-top:1px}.workflow-notice.action-required{color:#b42318}.workflow-notice.informative{color:#64748b}</style><style>.listhead .list-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.list-actions #exportExcel{background:#193b60;color:#fff;border:1px solid #193b60;font-weight:600}.list-actions #exportExcel:disabled{opacity:.6;cursor:wait}.list-actions #exportExcel[hidden]{display:none!important}#excelExportStatus:empty{display:none}#excelExportStatus{margin:8px 0;font-size:13px;overflow-wrap:anywhere}</style><link rel="manifest" href="web-push.webmanifest"><link rel="apple-touch-icon" href="web-push-icon-192.png"><link rel="stylesheet" href="issue-classification.css?v=r16"><link rel="stylesheet" href="in-app-notifications.css?v=r18"></head><body class="qa-auth-loading dashboard-compact"><main class="main">
+<header><a id="backDashboard" href="dashboard.html?from=all-jobs">← กลับหน้าหลัก</a><h1>Complaint &amp; Action Request Dashboard</h1><div class="qa-inbox-account"><p id="welcome" class="welcome">สวัสดีผู้ใช้งาน</p>
+ <div class="qa-inbox-anchor">
+  <button id="qaBell" class="qa-bell-button" type="button" aria-label="การแจ้งเตือน" aria-expanded="false" aria-controls="qaInboxPopover">
+   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span id="qaBellCount" class="qa-bell-count" aria-hidden="true" hidden></span>
+  </button>
+  <section id="qaInboxPopover" class="qa-inbox-popover" aria-labelledby="qaInboxTitle" hidden>
+   <div class="qa-inbox-heading"><h2 id="qaInboxTitle">การแจ้งเตือน</h2><span id="qaInboxCountText" class="qa-inbox-caption"></span></div>
+   <p id="qaInboxStatus" class="qa-inbox-empty" role="status">กำลังโหลด…</p>
+   <ul id="qaInboxRecent" class="qa-inbox-list"></ul>
+   <a class="qa-inbox-all" href="dashboard.html?view=notifications">ดูแจ้งเตือนทั้งหมด</a>
+  </section>
+ </div>
+</div></header>
+<section id="qaInboxHistory" class="panel" aria-labelledby="qaInboxHistoryTitle" hidden>
+ <h2 id="qaInboxHistoryTitle">ประวัติการแจ้งเตือน</h2><p class="qa-inbox-caption">ย้อนหลัง 7 วัน</p>
+ <p id="qaInboxHistoryStatus" class="qa-inbox-empty" role="status">กำลังโหลด…</p>
+ <ul id="qaInboxHistoryList" class="qa-inbox-list"></ul>
+ <button id="qaInboxMore" class="secondary" type="button" hidden>ดูเพิ่มเติม</button>
+</section>
 <div id="allJobFilters" class="controls" role="group" aria-label="ตัวกรองงานทั้งหมด" tabindex="0" hidden>
  <label class="job-filter"><span>หัวข้อการค้นหา</span>
   <select id="filterTopic">
@@ -117,4 +135,4 @@
  <table><thead><tr><th scope="col">ระดับ</th><th scope="col">ความรุนแรง</th><th scope="col">การจัดการ</th><th scope="col">กำหนดเวลา</th></tr></thead><tbody></tbody></table>
  <form method="dialog"><button class="secondary">ปิด</button></form>
 </dialog>
-</main><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r16-dashboard-severity-detail" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>
+</main><script src="in-app-notifications.js?v=r18" defer></script><script src="feature-script.js?v=performance-20261125-r15" defer></script><script src="issue-classification.js?v=r16" defer></script><script src="v41-dashboard.js?v=r18-in-app" defer></script><script src="admin-job-trash.js?v=followup-20261107" defer></script></body></html>

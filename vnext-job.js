@@ -7,6 +7,10 @@ if(fromAllJobs){
  if(['department','mine'].includes(scope))url.set('scope',scope);
  back.href='dashboard.html?'+url.toString();
  back.textContent='กลับรายการงานทั้งหมด';
+}else if(jobQuery.get('from')==='notifications'){
+ const back=document.querySelector('.job-home');
+ back.href='dashboard.html?view=notifications';
+ back.textContent='กลับประวัติการแจ้งเตือน';
 }
 function requestEditError(e){const text=e?.message||String(e);if(text.includes('INVALID_DAMAGE_AMOUNT_THB'))return 'กรอกมูลค่าความเสียหายเป็นจำนวนบาทตั้งแต่ 0 และทศนิยมไม่เกิน 2 ตำแหน่ง';if(text.includes('VERSION_CONFLICT'))return 'มีคนแก้ไขข้อมูลระหว่างเปิดหน้านี้ กรุณาเปิดแก้ไขใหม่';if(text.includes('REQUEST_ROUTING_LOCKED')||text.includes('JOB_ALREADY_ACCEPTED_OR_ACTIVE'))return 'มีแผนกรับงานแล้ว กรุณาเปิดฟอร์มใหม่เพื่อแก้เฉพาะรายละเอียดใบแจ้ง';if(text.includes('DEPARTMENT_HAS_SAVED_WORK_KEEP_ASSIGNED'))return 'แผนกนี้มีคำตอบหรือไฟล์เดิมอยู่ ต้องคงแผนกนี้ไว้เพื่อรักษาข้อมูล สามารถเพิ่มแผนกอื่นได้';if(text.includes('SELF_RESPONSE_EXISTING_OWNER'))return 'แผนกผู้แจ้งมีผู้รับงานหรือข้อมูลคำตอบแล้ว';if(text.includes('SELF_RESPONSE_ISSUE_CLOSED'))return 'ปัญหานี้ปิดแล้ว';if(['PGRST202','42883'].includes(String(e?.code||'')))return 'กรุณารัน SQL ชุดแก้ไขข้อมูลใบแจ้งก่อน';return text;}
 async function openRequestHeaderEditor(appendOnly=false){
@@ -1012,10 +1016,51 @@ $('pdfButton').onclick=async()=>{
  }catch(e){try{preview.close()}catch{}setNote('Export PDF ไม่สำเร็จ: '+e.message,true);}
 };
 
+async function openInboxNotice(id){
+ if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id||''))return;
+ try{
+  const args={p_notification_id:id,p_job_id:jobId};
+  let notice;
+  try{notice=await rpc('qa_in_app_notification_open_v1',args);}
+  catch(error){
+   if(error?.code)throw error;
+   await new Promise(resolve=>setTimeout(resolve,600));
+   notice=await rpc('qa_in_app_notification_open_v1',args);
+  }
+  if(!notice)return;
+  const folds=[...document.querySelectorAll('.issue-disclosure')];
+  const fold=folds.find(node=>node.dataset.issueId===notice.issue_id)
+   ||folds.find(node=>node.dataset.assignmentIds.split(',').includes(notice.assignment_id));
+  fold?._openIssue();
+  const group=fold&&[...fold.querySelectorAll('.issue-operation-group')].find(node=>node.dataset.assignment===notice.assignment_id);
+  const departmentFold=group?.closest('.department-disclosure');
+  if(departmentFold)departmentFold.open=true;
+  let target;
+  if(notice.kind==='ADMIN_COMMENT'){
+   if(notice.field==='problem')target=fold?.querySelector('.live-source .live-comment:not([hidden])')||fold?.querySelector('.live-source');
+   else if(['analysis','fix','prevent'].includes(notice.field)){
+    const field=group?.querySelector('.live-answer-row[data-field="'+notice.field+'"]');
+    target=field?.querySelector('.live-comment:not([hidden])')||field;
+   }
+  }else if(['ADMIN_ROLLBACK','RETURN','REQUESTER_FAIL'].includes(notice.kind)){
+   target=group?.querySelector('.workflow-reason-note[data-action="'+notice.kind+'"],.requester-return-result');
+  }else if(notice.kind==='REQUESTER_PASS'){
+   target=group?.querySelector('.live-review-result');
+  }
+  target ||= group?.querySelector('.unaccepted-actions,.department-panel')||group||fold||$('details');
+  target.classList.add('qa-notification-target');
+  target.tabIndex=-1;
+  target.focus({preventScroll:true});
+  target.scrollIntoView?.({block:'center'});
+ }catch(error){
+  setNote('เปิดใบงานแล้ว แต่ยังบันทึกสถานะอ่านไม่สำเร็จ กรุณาเปิดจากกระดิ่งอีกครั้ง',true);
+ }
+}
 async function boot(){for(let i=0;i<160&&!QA.profile;i++)await new Promise(r=>setTimeout(r,100));if(!QA.profile){setNote('Login ไม่พร้อม',true);detailState('error');return;}const params=new URLSearchParams(location.search);
  if(params.get('notification')==='1'&&/^[a-f\d-]{36}$/i.test(params.get('assignment')||'')){
   if(!await render({assignmentId:params.get('assignment'),rollbackReason:params.get('rollback-reason')==='1'}))return;
  }else if(!await render())return;
+ await openInboxNotice(params.get('notice'));
  if(!detail._catalogOnly)await window.QAReadState?.markOpened({...detail,assignments:detail.assignments.filter(a=>!a._catalogRead)});}
 boot();
 })();

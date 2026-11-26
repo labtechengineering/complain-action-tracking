@@ -491,6 +491,11 @@ function init(){
  initExcel();
  const profile=window.QA?.profile||{};
  $('welcome').textContent=`สวัสดี ${profile.display_name||profile.email||'ผู้ใช้งาน'} · ${profile.department||'ระบบติดตามงาน'}`;
+ if(new URLSearchParams(location.search).get('view')==='notifications'){
+  document.title='การแจ้งเตือน · Complain & Action Tracking';
+  document.querySelector('main header h1').textContent='การแจ้งเตือน';
+  return;
+ }
  if(allJobsMode){
   initCatalogFilters();
   document.querySelector('main > header h1').textContent='งานทั้งหมด';

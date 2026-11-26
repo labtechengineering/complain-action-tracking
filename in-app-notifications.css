@@ -1,0 +1,37 @@
+.qa-inbox-account{display:flex;align-items:center;gap:10px;margin-inline-start:auto;max-width:100%}
+.qa-inbox-account .welcome{min-width:0}
+.qa-inbox-anchor{position:relative;flex:none}
+.qa-inbox-anchor [hidden],#qaInboxHistory[hidden],#qaInboxMore[hidden]{display:none!important}
+.qa-inbox-anchor .qa-bell-button{display:grid;place-items:center;position:relative;width:38px;height:38px;min-height:0;padding:0;margin:0;border:1px solid #c7d8e9;border-radius:9px;background:#fff;color:#244b73;cursor:pointer}
+.qa-bell-button:hover,.qa-bell-button[aria-expanded=true]{background:#e3effc}
+.qa-bell-button svg{width:21px;height:21px}
+.qa-bell-count{display:grid;place-items:center;position:absolute;top:-6px;inset-inline-end:-6px;min-width:19px;height:19px;padding:0 3px;border-radius:999px;border:2px solid #fff;background:#bd2540;color:#fff;font-size:11px;font-weight:700;line-height:1}
+.qa-inbox-popover{position:absolute;top:calc(100% + 9px);inset-inline-end:0;z-index:30;display:flex;flex-direction:column;width:min(402px,calc(100vw - 28px));max-height:min(540px,calc(100dvh - 110px));border:1px solid #cad9e9;border-radius:11px;overflow:hidden;background:#fff;color:#152e49;box-shadow:0 14px 35px #17365029}
+.qa-inbox-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 14px}
+.qa-inbox-heading h2{font-size:16px;margin:0}
+.qa-inbox-caption{font-size:12px;color:#52677e}
+.qa-inbox-list{list-style:none;margin:0;padding:0;overflow:auto}
+.qa-inbox-list li{margin:0;border-top:1px solid #e2eaf3}
+.qa-inbox-list .qa-inbox-entry{display:grid;grid-template-columns:7px minmax(0,1fr);gap:0 9px;padding:9px 13px;color:#153252;background:#edf5ff;text-decoration:none}
+.qa-inbox-list .qa-inbox-entry.is-read{color:#506172;background:#f4f6f8}
+.qa-inbox-list .qa-inbox-entry:hover{background:#e2eefb}
+.qa-inbox-list .qa-inbox-entry:focus-visible{outline:2px solid #4a80b6;outline-offset:-3px}
+.qa-inbox-dot{width:7px;height:7px;margin-top:.42em;border-radius:50%;background:#287bc1}
+.is-read .qa-inbox-dot{background:#a2abb5}
+.qa-inbox-row-title{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:1px 8px;font-size:13px}
+.qa-inbox-entry time,.qa-inbox-meta{font-size:11px;color:#52677e}
+.qa-inbox-sample{font-size:12px;overflow-wrap:anywhere}
+.qa-inbox-sample:empty{display:none}
+.qa-inbox-meta,.qa-inbox-sample{margin:1px 0 0}
+.qa-inbox-all{padding:9px 12px;text-align:center;border-top:1px solid #e2eaf3;background:#fff;color:#245483;font-size:13px;font-weight:600;flex:none}
+.qa-inbox-empty{padding:12px 14px;margin:0;color:#52677e;font-size:13px}
+.qa-inbox-empty:empty{display:none}
+.qa-inbox-popover .qa-inbox-list:empty{display:none}
+#qaInboxHistory{max-width:860px;margin-top:12px}
+#qaInboxHistory .qa-inbox-list{border-radius:8px;border:1px solid #d9e4ef}
+#qaInboxHistory .qa-inbox-list:empty{display:none}
+#qaInboxHistory .qa-inbox-list li:first-child{border:0}
+#qaInboxHistory .qa-inbox-caption{margin:3px 0 12px}
+#qaInboxMore{margin:12px 0 0}
+html[data-dashboard-view="notifications"] :is(.charts,.cards,#viewAll,#issueSummary,.listpanel,#allJobFilters,#activeJobFilters,#feedback,#excelExportStatus){display:none!important}
+html[data-dashboard-view="notifications"] #backDashboard{display:inline-block!important;color:#255e8b;text-decoration:underline}
