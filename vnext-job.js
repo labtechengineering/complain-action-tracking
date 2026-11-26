@@ -702,12 +702,12 @@ function openDamageEditor(issue,updateAmount){
 }
 function buildIssueFacts(issue,requesterDue){
  const facts=document.createElement('dl');facts.className='issue-facts';
- const addFact=(label,value,date)=>{
+ const addFact=(className,label,value,date)=>{
   const group=document.createElement('div');
+  group.className=className;
   const term=document.createElement('dt'),description=document.createElement('dd');
   term.textContent=label;
   if(date){
-   group.className='issue-request-due';
    const time=document.createElement('time');time.dateTime=date;time.textContent=value;
    description.append(time);
   }else description.textContent=value;
@@ -715,20 +715,17 @@ function buildIssueFacts(issue,requesterDue){
   return description;
  };
  const occurrence=String(issue.occurrence_type??'').trim().toUpperCase();
- if(occurrence==='OLD'||occurrence==='NEW')addFact('ประเภท',occurrence==='OLD'?'ปัญหาเก่า':'ปัญหาใหม่');
- if(requesterDue)addFact('วันกำหนดเสร็จ',formatRequestDate(requesterDue),requesterDue);
- const severityCode=String(issue.severity_code??'').trim().toUpperCase();
- const severity=window.QAIssueClassification?.levels[severityCode];
- if(severity)addFact('กำหนดตามระดับ',severity.deadline);
+ if(occurrence==='OLD'||occurrence==='NEW')addFact('issue-occurrence','ประเภท',occurrence==='OLD'?'ปัญหาเก่า':'ปัญหาใหม่');
+ if(requesterDue)addFact('issue-request-due','วันกำหนดเสร็จ',formatRequestDate(requesterDue),requesterDue);
  if(issue.issue_id&&issue.issue_id!=='legacy'){
-  const field=addFact('มูลค่าความเสียหาย','');field.className='issue-damage-fact';
+  const field=addFact('issue-damage-row','มูลค่าความเสียหาย','');field.className='issue-damage-fact';
   const amount=document.createElement('span'),button=document.createElement('button');
   button.type='button';button.className='issue-damage-edit no-print';
+  button.textContent='แก้ไขยอด';
+  button.setAttribute('aria-label','แก้ไขยอดมูลค่าความเสียหาย ปัญหา '+issue.issue_number);
   const updateAmount=value=>{
    amount.textContent=damageAmountText(value);
    amount.hidden=value==null;
-   button.textContent=value==null?'กรอกยอด':'แก้ยอด';
-   button.setAttribute('aria-label',button.textContent+'มูลค่าความเสียหาย ปัญหา '+issue.issue_number);
   };
   updateAmount(issue.damage_amount_thb);
   button.onclick=()=>openDamageEditor(issue,updateAmount);
