@@ -38,7 +38,6 @@ function mount(ctx){context=ctx;data=ctx.notes;bindings=[];
  }
  for(const fold of ctx.root.querySelectorAll('.issue-disclosure')){const issue=(ctx.detail.assignments||[]).flatMap(a=>a.issues||[]).find(i=>String(i.issue_id)===fold.dataset.issueId);if(!issue)continue;fold.querySelector('.issue-disclosure-body').prepend(source(issue));}
  for(const holder of ctx.root.querySelectorAll('.received-issues'))if(!holder.querySelector('.media,.issueFiles,.issue-reassign,.unaccepted-actions'))holder.hidden=true;
- for(const e of ctx.history||[]){const h=e.details||{};if(!['DIRECT_FORWARD','FORWARD_RECEIVED'].includes(h.kind))continue;const issueId=String(h.issue_id||'');const fold=[...ctx.root.querySelectorAll('.issue-disclosure')].find(f=>f.dataset.issueId===issueId);if(!fold)continue;let section=fold.querySelector('.live-forward-history');if(!section){section=document.createElement('details');section.className='live-forward-history';section.innerHTML='<summary>ประวัติส่งต่อ</summary>';fold.querySelector('.issue-disclosure-body').append(section);}const p=document.createElement('p');p.textContent=(h.source_department||e.department_code)+' → '+(h.departments||[]).join(', ')+' · '+(h.mode==='share'?'ร่วมดำเนินการ':'ส่งต่อทั้งหมด')+(h.reason?' · '+h.reason:'');section.append(p);if(h.source_assignment_id)void savedFiles(section,h.source_assignment_id,ctx.media||[],ctx.getUrl);if(h.saved_response){const old=document.createElement('details');old.className='live-forward-response';old.innerHTML='<summary>คำตอบที่บันทึกไว้ก่อนส่งต่อ</summary>';for(const [key,label] of [['problem_analysis','วิเคราะห์สาเหตุ'],['corrective_action','การแก้ปัญหา'],['preventive_action','การป้องกัน']])if(h.saved_response[key]){const text=document.createElement('p');text.textContent=label+' : '+h.saved_response[key];old.append(text);}historicNotes(old,h.saved_response);section.append(old);}}
  startWatching();}
 async function refresh(){if(refreshing||document.hidden||!context)return;refreshing=true;try{const next=await api({});data=next;bindings.forEach(b=>b.update?.());}catch(e){console.warn('Live annotations refresh:',e?.message||e);}finally{refreshing=false;}}
 function startWatching(){clearInterval(poll);poll=setInterval(refresh,5000);if(channel&&QA.client.removeChannel)void QA.client.removeChannel(channel);channel=null;if(QA.client.channel){const id=context.detail.job_id||context.jobId;channel=QA.client.channel('qa-notes:'+id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'qa_department_assignments',filter:'job_id=eq.'+id},refresh).on('postgres_changes',{event:'UPDATE',schema:'public',table:'qa_issue_items',filter:'job_id=eq.'+id},refresh).subscribe();}}
@@ -67,7 +66,41 @@ async function savedFiles(host,id,media,getUrl){
   }catch{card.textContent='โหลดไฟล์เดิมไม่ได้ กรุณาเปิดใบงานอีกครั้ง';}
  }
 }
-function historicNotes(host,old){for(const [label,text] of [['รายละเอียดปัญหา',old.source_problem_comment],['วิเคราะห์สาเหตุ',old.system_comments?.analysis],['การแก้ปัญหา',old.system_comments?.fix],['การป้องกัน',old.system_comments?.prevent],['หมายเหตุ QA',old.qa_note]])if(text){const p=document.createElement('p');p.className='live-note-text';p.textContent=label+' : '+text;host.append(p);}}
-function emptyForwarded(root,history,media=[],getUrl){const forwards=(history||[]).filter(e=>e.details?.kind==='DIRECT_FORWARD');if(!forwards.length)return false;const box=document.createElement('section');box.className='sheet live-forward-history';const h=document.createElement('h3');h.textContent='งานที่ส่งต่อแล้ว';box.append(h);for(const e of forwards){const x=e.details,p=document.createElement('p');p.textContent='ปัญหา '+x.issue_number+' · '+x.issue_description+'\n'+x.source_department+' → '+(x.departments||[]).join(', ')+(x.reason?'\n'+x.reason:'');box.append(p);for(const [key,label] of [['problem_analysis','วิเคราะห์สาเหตุ'],['corrective_action','การแก้ปัญหา'],['preventive_action','การป้องกัน']])if(x.saved_response?.[key]){const line=document.createElement('p');line.textContent=label+' : '+x.saved_response[key];box.append(line);}historicNotes(box,x.saved_response||{});}root.dataset.forwardedEmpty='true';root.replaceChildren(box);for(const id of new Set(forwards.map(e=>e.details.source_assignment_id).filter(Boolean)))void savedFiles(box,id,media,getUrl);return true;}
-window.QAWork={mount,flushAll,source,emptyForwarded,notes:()=>data,refresh,message};
+function buildForwardSnapshot(event,media=[],getUrl){
+ const history=event.details,old=history.saved_response||{};
+ const fields=[
+  ['วิเคราะห์สาเหตุ',old.problem_analysis],['การแก้ปัญหา',old.corrective_action],
+  ['การป้องกัน',old.preventive_action],['คอมเมนต์รายละเอียดปัญหา',old.source_problem_comment],
+  ['คอมเมนต์วิเคราะห์สาเหตุ',old.system_comments?.analysis],
+  ['คอมเมนต์การแก้ปัญหา',old.system_comments?.fix],
+  ['คอมเมนต์การป้องกัน',old.system_comments?.prevent],['หมายเหตุ QA',old.qa_note]
+ ].filter(([,value])=>String(value??'').trim());
+ const beforeTime=Date.parse(event.created_at);
+ const files=media.filter(file=>file.scope==='ASSIGNMENT'
+   &&String(file.assignment_id)===String(history.source_assignment_id)
+   &&(!file.created_at||Date.parse(file.created_at)<=beforeTime));
+ if(!fields.length&&!files.length)return null;
+ const disclosure=document.createElement('details');
+ disclosure.className='timeline-forward-answer';
+ const summary=document.createElement('summary');
+ summary.textContent='คำตอบที่บันทึกไว้ก่อนส่งต่อ';
+ disclosure.append(summary);
+ const block=document.createElement('div');block.className='timeline-forward-answer-body';
+ for(const [label,value] of fields){
+  const line=document.createElement('p'),name=document.createElement('b');
+  name.textContent=label;
+  line.append(name,' : ',value);block.append(line);
+ }
+ disclosure.append(block);
+ if(files.length){
+  const showFiles=()=>{
+   if(!disclosure.open)return;
+   disclosure.removeEventListener('toggle',showFiles);
+   void savedFiles(block,history.source_assignment_id,files,getUrl);
+  };
+  disclosure.addEventListener('toggle',showFiles);
+ }
+ return disclosure;
+}
+window.QAWork={mount,flushAll,source,buildForwardSnapshot,notes:()=>data,refresh,message};
 })();
