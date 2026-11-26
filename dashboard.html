@@ -25,30 +25,8 @@
  #issueSummary>summary{width:max-content;max-width:100%;padding:3px 5px;list-style-position:inside;font-size:13px;font-weight:600!important;color:inherit}
  #issueSummary[open]{padding:7px 10px 10px;border:1px solid #e2e8f0;background:#fff;color:#24354b}
  #issueSummary[open] .qa-issue-ring{--qa-issue-surface:#fff}
- @media(min-width:801px){
-  html:not([data-dashboard-view="all"]) body.dashboard-compact .main{
-   max-width:none;
-   padding-inline:clamp(16px,1.5vw,36px)!important;
-  }
- }
- @media(min-width:1250px){
-  html body.dashboard-compact .charts .donut-layout{
-   --qa-status-donut-size:clamp(164px,calc(var(--qa-dashboard-chart-height) - 105px),216px);
-  }
-  html body.dashboard-compact .charts .donut-wrap{flex-basis:var(--qa-status-donut-size)}
-  html body.dashboard-compact .charts .donut{
-   width:var(--qa-status-donut-size);height:var(--qa-status-donut-size);
-  }
- }
  @media(max-width:1000px){
-  html body.dashboard-compact .charts{
-   --qa-dashboard-chart-height:270px;
-   grid-template-columns:minmax(0,1fr);
-  }
- }
- @media(max-width:600px){
-  html body.dashboard-compact .charts .plot{padding-inline:clamp(5px,2vw,12px)}
-  html body.dashboard-compact .charts .bar-item{min-width:32px}
+  .dashboard-compact .charts{--qa-dashboard-chart-height:270px}
  }
  @media(max-width:480px){
   #allJobFilters .job-filter{flex:1 1 130px}
