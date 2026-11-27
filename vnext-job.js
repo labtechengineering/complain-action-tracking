@@ -39,7 +39,7 @@ async function openRequestHeaderEditor(appendOnly=false){
  async function addCard(issue={}){
   const card=document.createElement('section');card.className='request-issue-card';card.dataset.issueId=issue.issue_id||'';
   const row={card,issue,entries:[],picker:null};cards.push(row);
-  card.innerHTML='<div class="request-issue-heading"><h4></h4>'+(!issue.issue_id?'<button type="button" class="secondary request-remove-issue">ลบปัญหาที่เพิ่ม</button>':'')+'</div><div class="request-header-grid"><label>ประเภทปัญหา<select class="request-category" required><option value="">เลือกประเภทปัญหา</option>'+categories.filter(c=>c.active!==false||c.code===issue.category_code).map(c=>'<option value="'+esc(c.code)+'">'+esc(c.name||c.code)+'</option>').join('')+'</select></label><label class="request-other-label" hidden>ระบุประเภทอื่นๆ<input class="request-other" maxlength="120"></label><label class="request-header-wide">รายละเอียดปัญหา<textarea class="request-description" required maxlength="20000"></textarea></label></div><div class="qa-issue-classification"></div><div class="request-issue-dates-cost"><label class="request-due-field">วันกำหนดเสร็จ<input class="request-issue-due" type="date"></label>'+(issue.issue_id?'':'<label>มูลค่าความเสียหาย (บาท)<input class="request-issue-damage" type="text" inputmode="decimal" pattern="[0-9]{1,10}([.][0-9]{1,2})?" maxlength="13" title="ตัวเลขตั้งแต่ 0 บาท ทศนิยมไม่เกิน 2 ตำแหน่ง"></label>')+'</div><fieldset class="request-receivers"><legend>ฝ่ายรับเรื่อง · เลือกได้หลายแผนก</legend></fieldset><div class="request-existing-media"></div><div class="request-issue-picker"></div>';
+  card.innerHTML='<div class="request-issue-heading"><h4></h4>'+(!issue.issue_id?'<button type="button" class="secondary request-remove-issue">ลบปัญหาที่เพิ่ม</button>':'')+'</div><div class="request-header-grid"><label>ประเภทปัญหา<select class="request-category" required><option value="">เลือกประเภทปัญหา</option>'+categories.filter(c=>c.active!==false||c.code===issue.category_code).map(c=>'<option value="'+esc(c.code)+'">'+esc(c.name||c.code)+'</option>').join('')+'</select></label><label class="request-other-label" hidden>ระบุประเภทอื่นๆ<input class="request-other" maxlength="120"></label><label class="request-header-wide">รายละเอียดปัญหา<textarea class="request-description" required maxlength="20000"></textarea></label></div><div class="qa-issue-classification"></div><div class="request-issue-dates-cost"><label class="request-due-field">วันกำหนดเสร็จ<input class="request-issue-due" type="date"></label>'+(!canEditDamage()||issue.issue_id?'':'<label>มูลค่าความเสียหาย (บาท)<input class="request-issue-damage" type="text" inputmode="decimal" pattern="[0-9]{1,10}([.][0-9]{1,2})?" maxlength="13" title="ตัวเลขตั้งแต่ 0 บาท ทศนิยมไม่เกิน 2 ตำแหน่ง"></label>')+'</div><fieldset class="request-receivers"><legend>ฝ่ายรับเรื่อง · เลือกได้หลายแผนก</legend></fieldset><div class="request-existing-media"></div><div class="request-issue-picker"></div>';
   window.QAIssueClassification?.mount(card.querySelector('.qa-issue-classification'),{
    key:crypto.randomUUID(),severity:issue.severity_code,occurrence:issue.occurrence_type,required:!issue.issue_id
   });
@@ -439,7 +439,9 @@ function workflowReasonNote(event){
  }
  return note;
 }
-async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing())){setNote(QAMediaPicker.preparingMessage);return false;}if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
+async function render(requestedFocus={}){
+ if(!await flushDamageDrafts()){setNote('ยังมีมูลค่าความเสียหายที่บันทึกไม่สำเร็จ',true);return false;}
+ if(activePickers.some(p=>p.isPreparing())){setNote(QAMediaPicker.preparingMessage);return false;}if(window.QAWork&&!await QAWork.flushAll()){setNote('ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ กรุณาตรวจสอบก่อนเปลี่ยนหน้า',true);return false;}const focusContext={...captureDetailFocus(),...requestedFocus};$('requestHeaderEditor')?._dispose?.();detailState('loading');damageDrafts.clear();activePickers.forEach(p=>p.destroy());activePickers=[];clearTimeout(departmentHighlightTimer);if(!jobId){setNote('ไม่พบหมายเลขงาน',true);detailState('error');return false;}
  try{
  // These secured reads use the same job ID and do not depend on one another.
  // Settle every read so optional history errors cannot reject an unread promise.
@@ -448,11 +450,12 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
  const catalog=fromAllJobs?await rpc('qa_all_jobs_detail_v1',{p_job_id:jobId}):null;
  const catalogOnly=Boolean(catalog&&catalog.workflow_visible!==true);
  const loaded=await Promise.allSettled(catalogOnly
-  ? [loadCategoryNames(),catalog,{rows:[],roundReady:false},[],[],{issues:{},assignments:{}}]
+  ? [loadCategoryNames(),catalog,{rows:[],roundReady:false},[],[],{issues:{},assignments:{}},[],
+     rpc('qa_job_damage_total_thb_v1',{p_job_id:jobId})]
   : [loadCategoryNames(),rpc('qa_vnext_job_detail',{p_job_id:jobId}),loadMedia(),
      rpc('qa_v51_assignment_rounds',{p_job_id:jobId}),
      rpc('qa_job_timeline_v1',{p_job_id:jobId}),rpc('qa_workflow_notes_v1',{p_job_id:jobId}),
-     rpc('qa_workflow_reasons_v1',{p_job_id:jobId})]);
+     rpc('qa_workflow_reasons_v1',{p_job_id:jobId}),rpc('qa_job_damage_total_thb_v1',{p_job_id:jobId})]);
  $('catalogReadOnly').hidden=!catalogOnly;
  $('pdfButton').hidden=catalogOnly;
  $('jobHistory').hidden=catalogOnly;
@@ -492,7 +495,11 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
  const list=$('assignments');list.replaceChildren();
  const unassigned=catalog?.unassigned_issues||[];
  if(!detail.assignments?.length){
- if(unassigned.length){appendCatalogUnassigned(list,unassigned);renderTracker(detail);detailState('ready');return true;}
+  if(unassigned.length){
+   appendCatalogUnassigned(list,unassigned);
+   if(unassigned.some(issue=>issue.issue_id&&issue.issue_id!=='legacy'))appendDamageTotal(list.lastElementChild,loaded[7]);
+   renderTracker(detail);detailState('ready');return true;
+  }
   const forwarding=(detail._workflow_history||[]).some(isForwardHistory);
   list.innerHTML='<section class="sheet">'+(forwarding?'งานนี้ส่งต่อแล้ว':'ใบงานนี้ยังไม่มีรายละเอียดฝ่ายรับเรื่อง')+'</section>';
   renderTracker(detail);
@@ -658,7 +665,7 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
  const reasons=assignmentReasons(loaded[6]?.status==='fulfilled'?loaded[6].value:[]);
  organizeDetailPanels(issueSheet,issueHost,focusContext.departmentOpen,reasons);
  appendCatalogUnassigned(list,unassigned);
- appendCatalogUnassigned(list,unassigned);
+ appendDamageTotal(unassigned.length?list.lastElementChild:issueSheet,loaded[7]);
  if(!catalogOnly)QAWork.mount({detail,jobId,notes:loaded[5].value,root:issueSheet,media,getUrl,rpc,note:setNote,render,queueEvents:queueRequestEvents,sendEvents:sendRequestLines,complete:returnHome,saveDraft:async(a,panel)=>{if(activePickers.some(p=>p.isPreparing()))throw Error(QAMediaPicker.preparingMessage);const values={receiver_problem_detail:a.receiver_problem_detail||'',problem_analysis:panel.querySelector('.analysis').value,corrective_action:panel.querySelector('.fix').value,preventive_action:panel.querySelector('.prevent').value};const r=await rpc('qa_vnext_assignment_action',{p_assignment_id:a.assignment_id,p_action:'SAVE_DRAFT',p_expected_version:a.version,p_data:values});a.version=Number(r.version);Object.assign(a,values);await uploadResponse(a.assignment_id,responseQueues.get(panel.dataset.queueKey)||[]);responseDrafts.delete(panel.dataset.queueKey);responseQueues.delete(panel.dataset.queueKey);}});renderTracker(detail);
  if(!catalogOnly)renderHistory(loaded[4]);
  detailState('ready');
@@ -672,47 +679,136 @@ async function render(requestedFocus={}){if(activePickers.some(p=>p.isPreparing(
 // Each issue is one collapsed list row. Move bound assignment forms between
 // issue folds so a shared response has exactly one live editor and one version.
 const issueDamageFormat=new Intl.NumberFormat('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-function damageAmountText(amount){
+const damageDrafts=new Map();
+let damageSaveQueue=Promise.resolve();
+function canEditDamage(){
+ return ['system_admin','department_admin'].includes(QA.profile?.role);
+}
+function formatDamageAmount(amount){
  return amount==null?'':issueDamageFormat.format(amount)+' บาท';
 }
-function openDamageEditor(issue,updateAmount){
- const dialog=$('issueDamageDialog'),form=dialog.querySelector('form');
- const input=form.elements.namedItem('amount'),confirm=form.querySelector('[type=submit]');
- const cancel=form.querySelector('[data-cancel]'),status=dialog.querySelector('.issue-damage-dialog-status');
- let expected=issue.damage_amount_thb??null;
- input.value=expected??'';
- status.textContent='';
- cancel.onclick=()=>dialog.close();
- dialog.oncancel=event=>{if(confirm.disabled)event.preventDefault();};
- form.onsubmit=async event=>{
-  event.preventDefault();
-  if(confirm.disabled||!input.reportValidity())return;
-  confirm.disabled=cancel.disabled=input.disabled=true;
-  status.textContent='กำลังบันทึก…';
-  try{
-   const result=await rpc('qa_issue_set_damage_thb_v1',{
-    p_job_id:jobId,p_issue_id:issue.issue_id,p_amount:input.value||null,p_expected_amount:expected
-   });
-   expected=result.damage_amount_thb??null;
-   issue.damage_amount_thb=expected;
-   updateAmount(expected);
-   if(result.saved){
-    dialog.close();
-    setNote('บันทึกมูลค่าความเสียหายแล้ว');
-   }else{
-    const latest=damageAmountText(expected)||'เว้นว่าง';
-    status.textContent='มีคนแก้ยอดล่าสุดเป็น '+latest+' ตรวจสอบยอดที่กรอกแล้วกดตกลงอีกครั้ง';
-   }
-  }catch(error){
-   status.textContent='บันทึกยอดไม่สำเร็จ '+requestEditError(error);
-  }finally{
-   confirm.disabled=cancel.disabled=input.disabled=false;
-   if(dialog.open)input.focus();
-  }
- };
- dialog.showModal();
- input.select();
+function showDamageTotal(amount){
+ const output=$('issueDamageTotal');
+ if(output)output.textContent=amount==null?'—':formatDamageAmount(amount);
 }
+function appendDamageTotal(container,result){
+ const row=document.createElement('div');
+ row.className='issue-damage-total';
+ const label=document.createElement('span');
+ label.id='issueDamageTotalLabel';label.textContent='มูลค่าความเสียหายรวม :';
+ const total=document.createElement('output');
+ total.id='issueDamageTotal';total.setAttribute('aria-labelledby',label.id);total.setAttribute('aria-live','polite');
+ row.append(label,total);container.append(row);
+ showDamageTotal(result.status==='fulfilled'?result.value:null);
+}
+function mountDamageAmount(field,issue){
+ const text=document.createElement('span');text.className='issue-damage-value';
+ const showValue=()=>{text.textContent=formatDamageAmount(issue.damage_amount_thb);};
+ showValue();
+ field.append(text);
+ if(!canEditDamage())return;
+
+ text.classList.add('issue-damage-print');
+ const editor=document.createElement('span');editor.className='issue-damage-editor no-print';
+ const input=document.createElement('input');
+ input.type='text';input.inputMode='decimal';input.autocomplete='off';input.maxLength=13;
+ input.pattern='[0-9]{1,10}([.][0-9]{1,2})?';
+ input.className='issue-damage-input';
+ input.setAttribute('aria-label','มูลค่าความเสียหาย ปัญหา '+issue.issue_number+' (บาท)');
+ const feedback=document.createElement('small');feedback.className='issue-damage-save-status';
+ feedback.id='damage-save-'+issue.issue_id;feedback.setAttribute('role','status');
+ input.setAttribute('aria-describedby',feedback.id);
+ editor.append(input,'บาท',feedback);field.append(editor);
+
+ let expected=issue.damage_amount_thb??null;
+ let timer,pending,conflict=false;
+ const expectedText=()=>String(expected??'');
+ input.value=expectedText();
+ const changed=()=>input.value!==expectedText();
+ const valid=()=>input.validity.valid;
+ const message=(value,error=false)=>{
+  feedback.textContent=value;
+  feedback.dataset.error=String(error);
+ };
+ function schedule(){
+  clearTimeout(timer);
+  timer=setTimeout(save,550);
+ }
+ function save(){
+  clearTimeout(timer);
+  if(pending)return pending;
+  if(!changed())return Promise.resolve(true);
+  if(conflict||!valid())return Promise.resolve(false);
+  message('กำลังบันทึก…');
+  pending=damageSaveQueue.then(async()=>{
+   if(!valid()||conflict)return false;
+   if(!changed())return true;
+   const draft=input.value;
+   try{
+    const result=await rpc('qa_issue_set_damage_thb_v1',{
+     p_job_id:jobId,p_issue_id:issue.issue_id,p_amount:draft||null,p_expected_amount:expected
+    });
+    expected=result.damage_amount_thb??null;
+    issue.damage_amount_thb=expected;
+    showValue();
+    showDamageTotal(result.total_damage_thb);
+    if(!result.saved){
+     conflict=true;
+     message('ยอดล่าสุด '+(formatDamageAmount(expected)||'เว้นว่าง')+' กรุณาแก้ยอดอีกครั้งเพื่อบันทึก',true);
+     return false;
+    }
+    if(input.value===draft){
+     input.value=expectedText();
+     message('บันทึกแล้ว');
+    }
+    return true;
+   }catch(error){
+    message(error?.message?.includes('DAMAGE_ADMIN_REQUIRED')?'บัญชีนี้ไม่มีสิทธิ์แก้ไขยอด':'บันทึกยอดไม่สำเร็จ กรุณาลองอีกครั้ง',true);
+    return false;
+   }
+  }).then(saved=>{
+   pending=null;
+   clearTimeout(timer);
+   if(!valid())message('กรอกตัวเลขและทศนิยมไม่เกิน 2 ตำแหน่ง',true);
+   else if(saved&&changed())schedule();
+   return saved;
+  });
+  damageSaveQueue=pending;
+  return pending;
+ }
+ input.addEventListener('input',()=>{
+  clearTimeout(timer);
+  conflict=false;
+  const invalid=!valid();
+  if(invalid)input.setAttribute('aria-invalid','true');
+  else input.removeAttribute('aria-invalid');
+  if(invalid)message('กรอกตัวเลขและทศนิยมไม่เกิน 2 ตำแหน่ง',true);
+  else if(changed()){
+   message('กำลังบันทึก…');
+   schedule();
+  }else message('');
+ });
+ input.addEventListener('blur',()=>{void save();});
+ damageDrafts.set(String(issue.issue_id),{
+  unsaved:()=>Boolean(pending)||changed(),
+  async flush(){
+   while(pending||changed()){
+    if(!await save())return false;
+   }
+   return true;
+  }
+ });
+}
+async function flushDamageDrafts(){
+ const saved=await Promise.all([...damageDrafts.values()].map(draft=>draft.flush()));
+ return saved.every(Boolean);
+}
+window.addEventListener('beforeunload',event=>{
+ if([...damageDrafts.values()].some(draft=>draft.unsaved())){
+  event.preventDefault();
+  event.returnValue='';
+ }
+});
 const issueDueDateFormat=new Intl.DateTimeFormat('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'Asia/Bangkok'});
 function buildIssueFacts(issue,requesterDue){
  const facts=document.createElement('dl');facts.className='issue-facts';
@@ -733,17 +829,7 @@ function buildIssueFacts(issue,requesterDue){
  if(requesterDue)addFact('issue-request-due','กำหนดเสร็จ',issueDueDateFormat.format(new Date(requesterDue+'T00:00:00+07:00')),requesterDue);
  if(issue.issue_id&&issue.issue_id!=='legacy'){
   const field=addFact('issue-damage-row','มูลค่าความเสียหาย','');field.className='issue-damage-fact';
-  const amount=document.createElement('span'),button=document.createElement('button');
-  button.type='button';button.className='issue-damage-edit no-print';
-  button.textContent='แก้ไขมูลค่า';
-  button.setAttribute('aria-label','แก้ไขมูลค่าความเสียหาย ปัญหา '+issue.issue_number);
-  const updateAmount=value=>{
-   amount.textContent=damageAmountText(value);
-   amount.hidden=value==null;
-  };
-  updateAmount(issue.damage_amount_thb);
-  button.onclick=()=>openDamageEditor(issue,updateAmount);
-  field.append(amount,button);
+  mountDamageAmount(field,issue);
  }
  return facts;
 }
@@ -1056,6 +1142,7 @@ async function returnHome(action){
  if(!window.QAReturn?.isTerminal(action))return false;
  if(activePickers.some(p=>p.isPreparing())||responseDrafts.size||[...responseQueues.values()].some(queue=>queue.length)){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีข้อมูลหรือไฟล์ของงานส่วนอื่นที่ยังไม่ได้บันทึก จึงคงหน้านี้ไว้');return false;}
  try{if(JSON.parse(sessionStorage.getItem('qa-full-edit-lines:'+jobId)||'[]').length){setNote(returnWarning='ทำรายการสำเร็จแล้ว แต่ยังมีการแจ้ง LINE ที่ค้าง กรุณากดส่งซ้ำก่อนออกจากหน้านี้',true);return false;}}catch{}
+ if(!await flushDamageDrafts()){setNote(returnWarning='ทำรายการสำเร็จแล้ว แต่ยังมีมูลค่าความเสียหายที่บันทึกไม่สำเร็จ',true);return false;}
  if(!await QAWork.flushAll()){setNote(returnWarning='ทำรายการสำเร็จแล้ว — ยังมีคอมเมนต์ที่บันทึกไม่สำเร็จ จึงคงหน้านี้ไว้',true);return false;}
  return QAReturn.home(action);
 }

@@ -5,6 +5,7 @@
  if(new URLSearchParams(location.search).has('edit'))return;
  const $=id=>document.getElementById(id);
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ const canEditDamage=()=>['system_admin','department_admin'].includes(window.QA?.profile?.role);
  const problems=[];let seq=0,receivers=[],createdId='',createdCode='',requestId='',busy=false;
  const err=e=>{
   const message=e?.message||String(e);
@@ -97,7 +98,7 @@
  // Reset browser-restored source selection for a NEW job only (edit mode exits above).
  source.value='';source.selectedIndex=0;
  window.addEventListener('pageshow',()=>{source.value='';source.selectedIndex=0;chooser.classList.remove('chosen');[...buttons.children].forEach(b=>{b.classList.remove('active');b.setAttribute('aria-pressed','false');});});
- function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.damageAmount=el.querySelector('.vn-issue-damage').value;i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);if(window.QAIssueClassification)Object.assign(i,QAIssueClassification.read(el));i.self_response=el.querySelector('.vn-self-response')?.checked===true;}}
+ function save(){for(const el of $('vnProblems').querySelectorAll('[data-issue]')){const i=problems.find(p=>p.id===+el.dataset.issue);if(!i)continue;i.category=el.querySelector('.vn-category').value;i.other=el.querySelector('.vn-other-detail')?.value||'';i.description=el.querySelector('.vn-detail').value;i.requestDueDate=el.querySelector('.vn-request-due input').value;i.damageAmount=el.querySelector('.vn-issue-damage')?.value||'';i.departments=[...el.querySelectorAll('.vn-dept:checked')].map(c=>c.value);if(window.QAIssueClassification)Object.assign(i,QAIssueClassification.read(el));i.self_response=el.querySelector('.vn-self-response')?.checked===true;}}
  function render(){for(const p of problems)p.releasePreview?.();const host=$('vnProblems');host.replaceChildren();problems.forEach((p,i)=>{
   const box=document.createElement('article');box.className='vn-card';box.dataset.issue=p.id;
   const opt=[...$('category').options].filter(x=>x.value).map(x=>`<option value="${esc(x.value)}">${esc(x.textContent)}</option>`).join('');
@@ -108,14 +109,15 @@
   <div class="qa-issue-classification"></div>
   <div class="vn-issue-dates-cost">
    <label class="vn-request-due">วันกำหนดเสร็จ *<input type="date" required></label>
-   <label>มูลค่าความเสียหาย (บาท)<input class="vn-issue-damage" type="text" inputmode="decimal" pattern="[0-9]{1,10}([.][0-9]{1,2})?" maxlength="13" title="ตัวเลขตั้งแต่ 0 บาท ทศนิยมไม่เกิน 2 ตำแหน่ง"></label>
+   ${canEditDamage()?'<label>มูลค่าความเสียหาย (บาท)<input class="vn-issue-damage" type="text" inputmode="decimal" pattern="[0-9]{1,10}([.][0-9]{1,2})?" maxlength="13" title="ตัวเลขตั้งแต่ 0 บาท ทศนิยมไม่เกิน 2 ตำแหน่ง"></label>':''}
   </div>
   ${['user','department_admin'].includes(window.QA?.profile?.role)&&QA.profile.department?'<label class="qa-issue-self"><input type="checkbox" class="vn-self-response"> ผู้แจ้งตอบปัญหานี้เอง</label>':''}
   <strong>ฝ่ายรับเรื่อง (เลือกได้หลายแผนก)</strong><div class="vn-checks">${receivers.filter(x=>x.enabled).map(x=>`<label><input class="vn-dept" type="checkbox" value="${esc(x.code)}">${esc(x.code)}</label>`).join('')}</div>
   <div class="vn-row"><label>ภาพประกอบ (ไม่เกิน 5 ภาพ)<input type="file" accept="${QAUploadPhoto.accept}" class="vn-images" multiple></label><label>วิดีโอ (ไม่เกิน 1 คลิป)<input type="file" accept="video/mp4,video/webm" class="vn-video"></label></div>
   <p class="vn-files" role="status"></p><div class="vn-file-grid"></div>`;
   box.querySelector('.vn-category').value=p.category;box.querySelector('.vn-detail').value=p.description;box.querySelector('.vn-request-due input').value=p.requestDueDate;
-  box.querySelector('.vn-issue-damage').value=p.damageAmount;
+  const damage=box.querySelector('.vn-issue-damage');
+  if(damage)damage.value=p.damageAmount;
   const category=box.querySelector('.vn-category'),other=box.querySelector('.vn-other-detail'),otherLabel=box.querySelector('.vn-other-label');
   other.value=p.other||'';
   const syncOther=()=>{const show=isOtherCategory(category.value);otherLabel.hidden=!show;other.required=show;if(!show){other.value='';p.other='';}};
@@ -177,7 +179,7 @@
  if(!p.category||!p.description.trim()||(!p.departments.length&&!p.self_response))throw new Error(`ปัญหา ${i+1}: กรอกประเภท รายละเอียด และเลือกฝ่ายรับเรื่องหรือเลือกตอบเอง`);
  if(window.QAIssueClassification&&(!p.severity_code||!p.occurrence_type))throw new Error(`ปัญหา ${i+1}: กรุณาเลือกความรุนแรงและปัญหาเก่า / ใหม่`);
  if(isOtherCategory(p.category)&&!String(p.other||'').trim())throw new Error(`ปัญหา ${i+1}: กรุณาระบุประเภทปัญหาอื่นๆ`);
- return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),request_due_date:p.requestDueDate,damage_amount_thb:p.damageAmount||null,departments:p.self_response?[...new Set([QA.profile.department,...p.departments])]:p.departments,...(window.QAIssueClassification?{severity_code:p.severity_code,occurrence_type:p.occurrence_type,self_response:p.self_response}:{})};});
+ return {category_code:p.category,category_other:isOtherCategory(p.category)?String(p.other||'').trim():'',description:p.description.trim(),request_due_date:p.requestDueDate,...(canEditDamage()?{damage_amount_thb:p.damageAmount||null}:{}),departments:p.self_response?[...new Set([QA.profile.department,...p.departments])]:p.departments,...(window.QAIssueClassification?{severity_code:p.severity_code,occurrence_type:p.occurrence_type,self_response:p.self_response}:{})};});
  const header={serialNo:$('serialNo').value.trim(),priority:$('priority').value||'NORMAL',impact:$('impact').value.trim(),location:$('location').value.trim(),downtimeMin:$('downtimeMin').value||'',
  customerName:$('vnCustomer').value.trim(),country:$('vnCountry').value.trim(),remark:$('vnRemark').value.trim(),sourceType:$('vnSource').value};
  if(QA.profile?.role==='system_admin')header.fromDepartment='SYSTEM';
